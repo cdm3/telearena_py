@@ -1,0 +1,72 @@
+[
+  {
+    "name": "a rusty sword",
+    "type": 1,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 4
+  },
+  {
+    "name": "a club",
+    "type": 1,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 3
+  },
+  {
+    "name": "a spear",
+    "type": 1,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 6
+  },
+  {
+    "name": "a dagger",
+    "type": 1,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 3
+  },
+  {
+    "name": "a mace",
+    "type": 2,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 6
+  },
+  {
+    "name": "a morningstar",
+    "type": 2,
+    "prefix": 1,
+    "mindam": 2,
+    "maxdam": 8
+  },
+  {
+    "name": "a shortsword",
+    "type": 3,
+    "prefix": 1,
+    "mindam": 1,
+    "maxdam": 6
+  },
+  {
+    "name": "a longsword",
+    "type": 3,
+    "prefix": 1,
+    "mindam": 2,
+    "maxdam": 10
+  },
+  {
+    "name": "a battleax",
+    "type": 4,
+    "prefix": 1,
+    "mindam": 2,
+    "maxdam": 12
+  },
+  {
+    "name": "a halberd",
+    "type": 4,
+    "prefix": 1,
+    "mindam": 3,
+    "maxdam": 15
+  }
+]

@@ -1,0 +1,1277 @@
+[
+  {
+    "id": 1,
+    "short_desc": "You're in the north plaza.",
+    "long_desc": "You are standing at the north end of a large open plaza surrounded\nby shade trees as well as assorted flowering shrubs and hedges whose\nscent wafts through the warm, dry air. To the west stands an ornate\ntemple adorned with ornate stone and brass architecture. A quaint little\nshop lies to the northwest, and a dimly lit, smokey little tavern to the\nnortheast. To the east lay the huge wrought iron gates of the arena. To\nnorth is the town guild hall. The other half of the plaza lies to the\nsouth.",
+    "exits": [
+      8,
+      5,
+      2,
+      0,
+      10,
+      0,
+      4,
+      3,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 2,
+    "short_desc": "You're in the arena.",
+    "long_desc": "You now stand inside the gates of the village's most noteworthy and\nnotorious point of interest, the arena. The charred and stained stone\nwalls and scattered bits of bone, armor, and weaponry lying among the\ndebris on the packed earthen floor. A huge brass gong hangs at the center\nof the arena suspended on a framework made of the bones of some of the\nless fortunate of the arena's combatants. To the south is a wide stone\nstaircase leading down to the dungeon gate. The exit through the arena\ngates is to the west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 3,
+    "short_desc": "You're in the equipment shop.",
+    "long_desc": "You are now inside the equipment shop, where one may purchase supplies\nand provisions essential to survival in the dungeons or the wilderness.\nThe shop keeper sits on a tall stool behind a counter along the north\nwall, eyeing you warily. The exit is to the southeast.",
+    "exits": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 4,
+    "short_desc": "You're in the temple.",
+    "long_desc": "You are now in the main entry hall of a great temple. Huge black\nmarble columns veined with platinum stretch to the ceiling some 100'\noverhead. The paterns in the tile floor are so ornate and complex as to\nbe nearly impossible to follow or comprehend. Many black silk tapestries\ndepicting various scenes of a religious or magical nature block your view\ninto the many other areas of the temple. Blue robed priests and acolytes\nmove here and there going about their daily duties. The exit is to the\neast.",
+    "exits": [
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 5,
+    "short_desc": "You're in the tavern.",
+    "long_desc": "You are in the village tavern. The smoke from the many oil lamps\ndecrease visibility to your imediate surroundings, and the wavering\nlight they cast about the room leaves many shadows and unlit corners.\nThere are several tables about the room, where the tavern's patrons\neat, drink, and generally enjoy themselves. The bar stands along the\nnorth wall and a door to the kitchen lies to the northeast. A large,\nfull length mirror adorns the west wall. The only visible exits lie\nup a steep wooden ladder near the rear of the room, and out into the\nnorth plaza to the southwest.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      33,
+      0
+    ]
+  },
+  {
+    "id": 6,
+    "short_desc": "You're in the weapon shop.",
+    "long_desc": "You are now inside the weapon shop, where you may purchase various\nweapons to use for sparring in the arena or for personal defense from\nthe denizens of the dungeons. The shop keeper sits on a high stool\nbehind a tall counter along the south wall. The exit is to the west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 7,
+    "short_desc": "You're in the armor shop.",
+    "long_desc": "You are now inside the armor shop, where you may aquire different\nsorts of armor and protective gear to guard yourself against the blows\nof your opponents in the arena, or from the various non-human foes to be\nfound in the dungeons beneath the town. The shop keeper sits on a high\nbehind a worn counter along the south wall, eyeing you warily. The exit\nis to the east.",
+    "exits": [
+      0,
+      0,
+      10,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 8,
+    "short_desc": "You're in the guild hall.",
+    "long_desc": "You have entered the town guild hall, where one may seek the training\nneccessary to refine your combat and spell skills. This building is\nalso a center of learning where the ancient art of sorcery is taught\nto those with the intelligence and skill to wield it effectively. Sages,\nwizards, and masters-at-arms rush about on errands or to and from\ntraining sessions. Ornately carved marble archways exit to the north and\nsouth, and a wide stone staircase leads downward.",
+    "exits": [
+      11,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      34
+    ]
+  },
+  {
+    "id": 9,
+    "short_desc": "You're in the magic shop.",
+    "long_desc": "You're standing in a warm, dimly lit shop where various magical items\nare bought and sold by a shrewd mage in crimson robes with an air of\npower and complete confidence about him. He doesn't look like someone\nwhose spells you'd like to be on the wrong end of. The sweet scent of\nincense drifts in from a workroom in the rear of the shop. The exit is\nto the north.",
+    "exits": [
+      10,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 10,
+    "short_desc": "You're in the south plaza.",
+    "long_desc": "You are standing at the south end of a large open plaza surrounded\nby shade trees as well as assorted flowering shrubs and hedges who's\nscent wafts through the warm, dry air. To the west stands the town's\narmor shop. The weapon shop lies to the east. There is a magic shop\nto the south. To the north lies the other half of the plaza and to\nthe southwest lies the town's outer gate.",
+    "exits": [
+      1,
+      0,
+      6,
+      0,
+      9,
+      0,
+      7,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 11,
+    "short_desc": "You're on the docks.",
+    "long_desc": "You are standing on the docks. The water from the lake laps quietly against\nthe docks making the peaceful scene on the lake all that more serene. An\nornately carved marble archway exits through the town wall to the south into\nthe guild hall.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      8,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 12,
+    "short_desc": "You're on the docks.",
+    "long_desc": "You are standing on the docks. The water from the lake laps quietly against\nthe docks making the peaceful scene on the lake all that more serene. A path\nleads towards a large open plaza to the northwest.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      13,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 13,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into an open plaza to the northwest,\nand to the docks on the great lake to the southeast. Large old trees line\nthe path and lend shade and birdsong to this quaint little town.",
+    "exits": [
+      0,
+      0,
+      0,
+      12,
+      0,
+      0,
+      0,
+      14,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 14,
+    "short_desc": "You're in the south plaza.",
+    "long_desc": "You are standing in a large open plaza at the south end of town surrounded\nby shade trees. A path to the north leads to a plaza in the northern end of\ntown. To the southwest, a well trodden path leads to what appears to be a\nweapon shop. A third path to the southeast leads to the docks.",
+    "exits": [
+      17,
+      0,
+      0,
+      13,
+      0,
+      15,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 15,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into a weapon shop to the southwest,\nand to the town's southern plaza to the northeast. Large old trees line the\npath and lend shade and birdsong to this quaint little town.",
+    "exits": [
+      0,
+      14,
+      0,
+      0,
+      0,
+      16,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 16,
+    "short_desc": "You're in the weapon shop.",
+    "long_desc": "You are now inside the weapon shop, where you may purchase various\nweapons to use for sparring in the arena or for personal defense from the\ndenizens of the dungeons. The shop keeper sits on a high stool behind a\ntall counter along the west wall. The exit is to the northeast.",
+    "exits": [
+      0,
+      15,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 17,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into open plazas to the north and\nsouth. Large old trees line the path and lend shade and birdsong to this\nquaint little town.",
+    "exits": [
+      18,
+      0,
+      0,
+      0,
+      14,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 18,
+    "short_desc": "You're in the north plaza.",
+    "long_desc": "You are standing in a large open plaza at the north end of town surrounded\nby shade trees. A path to the east leads to a plaza in the eastern end of\ntown. To the west, a well trodden path leads to town's equipment shop. A\nthird path to the south leads to a plaza in the southern end of town, and\na fourth path leads to an inn to the southwest.",
+    "exits": [
+      23,
+      0,
+      25,
+      0,
+      17,
+      19,
+      21,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 19,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into the town's inn to the southwest,\nand to the town's northern plaza to the northeast. Large old trees line the\npath and lend shade and birdsong to this quaint little town. There is a\nlarge rusty grate here which leads down into the town sewers.",
+    "exits": [
+      0,
+      18,
+      0,
+      0,
+      0,
+      20,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 20,
+    "short_desc": "You're in the inn.",
+    "long_desc": "You are in the town's inn. The smoke from the many oil lamps decrease\nvisibility to your imediate surroundings, and the wavering light they\ncast about the room leaves many shadows and unlit corners. There are\nseveral tables about the room, where the inn's patrons eat, drink, and\ngenerally enjoy themselves. The bar stands along the north wall and a\ndoor to the kitchen lies to the southwest, and a staircase leads up to\nthe inn's rooms. The only visibile exit lies to the northeast.",
+    "exits": [
+      0,
+      19,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 21,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into an equipment shop to the west,\nand to the town's northern plaza to the east. Large old trees line the path\nand lend shade and birdsong to this quaint little town.",
+    "exits": [
+      0,
+      0,
+      18,
+      0,
+      0,
+      0,
+      22,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 22,
+    "short_desc": "You're in the equipment shop.",
+    "long_desc": "You are now inside the equipment shop, where one may purchase supplies\nand provisions essential to survival in the dungeons or the wilderness.\nThe shop keeper sits on a tall stool behind a counter along the west\nwall, eyeing you warily. The exit is to the east.",
+    "exits": [
+      0,
+      0,
+      21,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 23,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into a magic shop to the north and,\nto the town's northern plaza to the south. Large old trees line the path\nand lend shade and birdsong to this quaint little town.",
+    "exits": [
+      24,
+      0,
+      0,
+      0,
+      18,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 24,
+    "short_desc": "You're in the magic shop.",
+    "long_desc": "You're standing in a warm, dimly lit shop where various magical items\nare bought and sold by a shrewd mage in crimson robes with an air of\npower and complete confidence about him. He doesn't look like someone\nwhose spells you'd like to be on the wrong end of. The sweet scent of\nincense drifts in from a workroom in the rear of the shop. The exit is\nto the south.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      23,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 25,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into open plazas to the east and\nwest. Large old trees line the path and lend shade and birdsong to this\nquaint little town.",
+    "exits": [
+      0,
+      0,
+      26,
+      0,
+      0,
+      0,
+      18,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 26,
+    "short_desc": "You're in the east plaza.",
+    "long_desc": "You are standing in a large open plaza at the east end of town surrounded\nby shade trees. A well trodden path to the east leads to an armor shop. To\nthe west, another well used path leads to an open plaza in the northern end\nof town. A third path to the south leads to towns temple, and a fourth path\nleads to the town's arena.",
+    "exits": [
+      27,
+      0,
+      29,
+      0,
+      31,
+      0,
+      25,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 27,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into an open plaza to the south,\nand to the town's arena to the north. Large old trees line the path and\nlend shade and birdsong to this quaint little town.",
+    "exits": [
+      28,
+      0,
+      0,
+      0,
+      26,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 28,
+    "short_desc": "You're in the arena.",
+    "long_desc": "You now stand inside the gates of the town's arena. The charred and\nstained stone walls and scattered bits of bone, armor, and weaponry\nlying among the debris on the packed earthen floor. A huge bronze\ngong hangs at the center of the arena suspended on a framework made\nof the bones of some of the less fortunate of the arena's combatants.\nThe exit through the arena gates is to the south.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      27,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 29,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into an open plaza to the west,\nand to the armor shop to the east. Large old trees line the path and\nlend shade and birdsong to this quaint little town.",
+    "exits": [
+      0,
+      0,
+      30,
+      0,
+      0,
+      0,
+      26,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 30,
+    "short_desc": "You're in the armor shop.",
+    "long_desc": "You are now inside the armor shop, where you may aquire different sorts\nof armor and protective gear to guard yourself against the blows of your\nopponents in the arena, or from the various non-human foes to be found\nin the dungeons near the town. The shop keeper sits on a high stool\nbehind a worn counter along the east wall, eyeing you warily. The exit\nis to the west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      29,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 31,
+    "short_desc": "You're on a path.",
+    "long_desc": "You are standing on a path that leads into an open plaza to the north,\nand to the town's temple to the south. Large old trees line the path and\nlend shade and birdsong to this quaint little town.",
+    "exits": [
+      26,
+      0,
+      0,
+      0,
+      32,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 32,
+    "short_desc": "You're in the temple.",
+    "long_desc": "You are now in the main entry hall of a great temple. Huge black\nmarble columns veined with platinum stretch to the ceiling some 100'\noverhead. The paterns in the tile floor are so ornate and complex as to\nbe nearly impossible to follow or comprehend. Many black silk tapestries\ndepicting various scenes of a religious or magical nature block your view\ninto the many other areas of the temple. Blue robed priests and acolytes\nmove here and there going about their duties. The exit is to the north.",
+    "exits": [
+      31,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 33,
+    "short_desc": "You're in a private room.",
+    "long_desc": "You are in a private room above the tavern. The room is well furnished,\nthough not richly. A window in the northern wall affords a breathtaking\nview of the great lake to the north of town. A steep wooden staircase\nleads down through a trap door in the floor to the tavern common room.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+    ]
+  },
+  {
+    "id": 34,
+    "short_desc": "You're in the town vaults.",
+    "long_desc": "You are standing at the entrance to the town vaults. The room is bare, and\nfashioned from solid natural stone. On the south wall there is a huge iron\ndoor, and an open window covered with iron bars. A richly dressed man in\nthe window looks at you expectantly. A wide stone staircase leads upward.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      0
+    ]
+  },
+  {
+    "id": 35,
+    "short_desc": "You're in the town square.",
+    "long_desc": "You are standing in the midst of a large open square in a subterranean\ncavern. The vaulted ceiling rises high above your head into near dark.\nThe light from oil lamps spaced evenly about the square affords adequate\nlight. Plain stone benches of good workmanship line the outer edges of\nthe square. To the four primary compass points stand smooth stone walls\ncarved with detailed scenes depicting various aspects of dwarven life.\nTo the northeast, southeast, southwest, and northeast lie open plazas\nsurrounding ornate stone fountains.",
+    "exits": [
+      0,
+      36,
+      0,
+      37,
+      0,
+      39,
+      0,
+      38,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 36,
+    "short_desc": "You're in an underground plaza.",
+    "long_desc": "You are standing in a large open plaza at the northeast corner of an\nenormous subterranean cavern. An ornate stone fountain of fine\ncraftsmanship stands in the center of the plaza. The gurgling fountain\nfills you with a sense of peace and tranquility, and the cool air is\nvery still here. The plaza opens out into the town square to the\nsouthwest. To the north and east lie large stone archways decorated\nwith intricate stonework.",
+    "exits": [
+      40,
+      0,
+      41,
+      0,
+      0,
+      35,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 37,
+    "short_desc": "You're in an underground plaza.",
+    "long_desc": "You are standing in a large open plaza at the southeast corner of an\nenormous subterranean cavern. An ornate stone fountain of fine\ncraftsmanship stands in the center of the plaza. The gurgling fountain\nfills you with a sense of peace and tranquility, and the cool air is\nvery still here. The plaza opens out into the town square to the\nnorthwest. To the southeast lies a large stone archway decorated\nwith intricate stonework.",
+    "exits": [
+      0,
+      0,
+      0,
+      43,
+      0,
+      0,
+      0,
+      35,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 38,
+    "short_desc": "You're in an underground plaza.",
+    "long_desc": "You are standing in a large open plaza at the northwest corner of an\nenormous subterranean cavern. An ornate stone fountain of fine\ncraftsmanship stands in the center of the plaza. The gurgling fountain\nfills you with a sense of peace and tranquility, and the cool air is\nvery still here. The plaza opens out into the town square to the\nsoutheast. To the northeast, and northwest lie large stone archways\ndecorated with intricate stonework.",
+    "exits": [
+      0,
+      47,
+      0,
+      35,
+      0,
+      0,
+      0,
+      42,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 39,
+    "short_desc": "You're in an underground plaza.",
+    "long_desc": "You are standing in a large open plaza at the southwest corner of an\nenormous subterranean cavern. An ornate stone fountain of fine\ncraftsmanship stands in the center of the plaza. The gurgling fountain\nfills you with a sense of peace and tranquility, and the cool air is\nvery still here. The plaza opens out into the town square to the\nnortheast. To the northwest, southeast, and southwest lie large stone\narchways decorated with intricate stonework.",
+    "exits": [
+      0,
+      35,
+      0,
+      46,
+      0,
+      45,
+      0,
+      44,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 40,
+    "short_desc": "You're in the guild hall.",
+    "long_desc": "You have entered the town guild hall, where one may seek the training\nneccessary to refine your combat and spell skills. This building is\nalso a center of learning where the ancient art of sorcery is taught\nto those with the intelligence and skill to wield it effectively. Sages,\nwizards, and masters-at-arms rush about on errands or to and from\ntraining sessions. An ornately carved stone archway exits to the south.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      36,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 41,
+    "short_desc": "You're in the temple.",
+    "long_desc": "You are now in the main entry hall of a great temple. Huge reddish\nstone columns stretch to the ceiling some 50' overhead. The stone floor\nis made up of intricately engraved flagstones. Heavy cloth tapestries\ndepicting various scenes of dwarven religious cerimonies block your view\ninto the other areas of the temple. Grey robed priests and acolytes\nmove here and there going about their daily duties. An ornate archway\nexits to the west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      36,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 42,
+    "short_desc": "You're in the tavern.",
+    "long_desc": "You are in the tavern. The smoke from the many oil lamps decreases\nvisibility to your imediate surroundings, and the wavering light they\ncast about the room leaves many shadows and unlit corners. There are\nseveral tables about the room, where the tavern's rowdy patrons,\nprimarily dwarves, gnomes, and an occasional goblin make themselves at\nhome. The bar stands along the north wall and a door to the kitchen\nlies to the west. The only visibile exit lies to the southeast.",
+    "exits": [
+      0,
+      0,
+      0,
+      38,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 43,
+    "short_desc": "You're in the magic shop.",
+    "long_desc": "You're standing in a warm, dimly lit shop where various magical items\nare bought and sold by a shrewd mage in crimson robes with an air of\npower and complete confidence about him. He doesn't look like someone\nwhose spells you'd like to be on the wrong end of. The sweet scent of\nincense drifts in from a workroom in the rear of the shop. A stone\narchway lies to the to the northwest.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      37,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 44,
+    "short_desc": "You're in the equipment shop.",
+    "long_desc": "You are now inside the equipment shop, where one may purchase supplies\nand provisions essential to survival in the dungeons or the wilderness.\nThe shop keeper sits on a tall stool behind a counter along the west\nwall, eyeing you warily. A stone archway lies to the to the southeast.",
+    "exits": [
+      0,
+      0,
+      0,
+      39,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 45,
+    "short_desc": "You're in the armor shop.",
+    "long_desc": "You are now inside the armor shop, where you may aquire different\nsorts of armor and protective gear to guard yourself against the blows\nof your opponents. The shop keeper sits on a high behind a worn counter\nalong the west wall, eyeing you warily. A stone archway lies to the to\nthe northeast.",
+    "exits": [
+      0,
+      39,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 46,
+    "short_desc": "You're in the weapon shop.",
+    "long_desc": "You are now inside the weapon shop, where you may purchase various\nweapons to use for sparring in the arena or for personal defense from\nthe denizens of the dungeons. The shop keeper sits on a high stool\nbehind a tall counter along the south wall. A stone archway lies to\nthe to the northwest.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      39,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 47,
+    "short_desc": "You're in the arena.",
+    "long_desc": "You are standing in an enormous natural cavern of dark reddish stone.\nThe charred and stained walls and stonework floor tell of battles\nancient and recent that have been fought in this place of death. The\nfloor and walls of this cavern give off noticable heat. A huge iron\ngong hangs at the center of the arena suspended on a framework made\nof the bones of demons and dragons. The exit through a huge stone\narchway is to the southwest.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      38,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 48,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk is anchored against the trunk of a\nhuge tree to the south, and continues north. There is a round hole\nin the platform near the tree trunk which leads down to some large\nbranches which appear climbable.",
+    "exits": [
+      49,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 49,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north and south.",
+    "exits": [
+      50,
+      0,
+      0,
+      0,
+      48,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 50,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues south and west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      51,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 51,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues to the north and east.",
+    "exits": [
+      52,
+      0,
+      50,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 52,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north and south.",
+    "exits": [
+      53,
+      0,
+      0,
+      0,
+      51,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 53,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. A large wooden platform lies to the north. The\ncatwalk continues south.",
+    "exits": [
+      54,
+      0,
+      0,
+      0,
+      52,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 54,
+    "short_desc": "You're in the southeast plaza.",
+    "long_desc": "You are standing in the southeastern section of a large open square\nplatform made of wood. The platform is ringed by intricately carved\nwooden railing. The trunk of a huge tree lies in the center of the\nplatform, and appears to be the central support for the surrounding\nstructure. The rest of the platform lies to the north and west, and\na wooden catwalk leads off into the trees to the south.",
+    "exits": [
+      57,
+      0,
+      0,
+      0,
+      53,
+      0,
+      55,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 55,
+    "short_desc": "You're in the southwest plaza.",
+    "long_desc": "You are standing in the southwestern section of a large open square\nplatform made of wood. The platform is ringed by intricately carved\nwooden railing. The trunk of a huge tree lies in the center of the\nplatform, and appears to be the central support for the surrounding\nstructure. The rest of the platform lies to the north and east, and\na wooden catwalk leads off into the trees to the west.",
+    "exits": [
+      56,
+      0,
+      54,
+      0,
+      0,
+      0,
+      71,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 56,
+    "short_desc": "You're in the northwest plaza.",
+    "long_desc": "You are standing in the northwestern section of a large open square\nplatform made of wood. The platform is ringed by intricately carved\nwooden railing. The trunk of a huge tree lies in the center of the\nplatform, and appears to be the central support for the surrounding\nstructure. The rest of the platform lies to the south and east, and\na wooden catwalk leads off into the trees to the north.",
+    "exits": [
+      64,
+      0,
+      57,
+      0,
+      55,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 57,
+    "short_desc": "You're in the northeast plaza.",
+    "long_desc": "You are standing in the northeastern section of a large open square\nplatform made of wood. The platform is ringed by intricately carved\nwooden railing. The trunk of a huge tree lies in the center of the\nplatform, and appears to be the central support for the surrounding\nstructure. The rest of the platform lies to the south and west, and\na wooden catwalk leads off into the trees to the east.",
+    "exits": [
+      0,
+      0,
+      58,
+      0,
+      54,
+      0,
+      56,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 58,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. A large wooden platform lies to the west. The\ncatwalk continues east.",
+    "exits": [
+      0,
+      0,
+      59,
+      0,
+      0,
+      0,
+      57,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 59,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north, east, and west.",
+    "exits": [
+      75,
+      0,
+      60,
+      0,
+      0,
+      0,
+      58,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 60,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues south and west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      61,
+      0,
+      59,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 61,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north. To the east lies\nan ornately carved wooden archway.",
+    "exits": [
+      60,
+      0,
+      62,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 62,
+    "short_desc": "You're in the weapon shop.",
+    "long_desc": "You are now inside the weapon shop, where you may purchase various\nweapons to use for personal defense from the denizens of the dungeons.\nThe shop keeper sits on a high stool behind a tall counter along the\neast wall. The exit is to the west.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      61,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 63,
+    "short_desc": "You're in the armor shop.",
+    "long_desc": "You are now inside the armor shop, where you may aquire different sorts\nof armor and protective gear to guard yourself against the blows of your\nopponents in the arenas, or from the various non-human foes to be found\nin the dungeons. The shop keeper sits on a high stool behind a worn\ncounter along the north wall, eyeing you warily. The exit is to the south.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      75,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 64,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. A large wooden platform lies to the south. The\ncatwalk continues north.",
+    "exits": [
+      65,
+      0,
+      0,
+      0,
+      56,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 65,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north, south, and west.",
+    "exits": [
+      68,
+      0,
+      0,
+      0,
+      64,
+      0,
+      66,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 66,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues east. To the west lies\nan ornately carved wooden archway.",
+    "exits": [
+      0,
+      0,
+      65,
+      0,
+      0,
+      0,
+      67,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 67,
+    "short_desc": "You're in the equipment shop.",
+    "long_desc": "You are now inside the equipment shop, where one may purchase supplies\nand provisions essential to survival in the dungeons or the wilderness.\nThe shop keeper sits on a tall stool behind a counter along the west\nwall, eyeing you warily. The exit is to the east.",
+    "exits": [
+      0,
+      0,
+      66,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 68,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues east and south.",
+    "exits": [
+      0,
+      0,
+      69,
+      0,
+      65,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 69,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues west. To the north lies\nan ornately carved wooden archway.",
+    "exits": [
+      70,
+      0,
+      0,
+      0,
+      0,
+      0,
+      68,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 70,
+    "short_desc": "You're in the tavern.",
+    "long_desc": "You are in the tavern. The smoke from the many oil lamps decreases\nvisibility to your imediate surroundings, and the wavering light they\ncast about the room leaves many shadows and unlit corners. There are\nseveral tables about the room, where the tavern's patrons,\nprimarily elves, and an occasional human make themselves at\nhome. The bar stands along the north wall and a door to the kitchen\nlies to the east. The only visibile exit lies to the south.",
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      69,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 71,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. A large wooden platform lies to the east. The\ncatwalk continues west.",
+    "exits": [
+      0,
+      0,
+      55,
+      0,
+      0,
+      0,
+      72,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 72,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues east and south.",
+    "exits": [
+      0,
+      0,
+      71,
+      0,
+      73,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 73,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues north. To the south lies\nan ornately carved wooden archway.",
+    "exits": [
+      72,
+      0,
+      0,
+      0,
+      74,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 74,
+    "short_desc": "You're in the magic shop.",
+    "long_desc": "You're standing in a warm, dimly lit shop where various magical items\nare bought and sold by a shrewd mage in crimson robes with an air of\npower and complete confidence about him. He doesn't look like someone\nwhose spells you'd like to be on the wrong end of. The sweet scent of\nincense drifts in from a workroom in the rear of the shop. The exit is\nto the north.",
+    "exits": [
+      73,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  {
+    "id": 75,
+    "short_desc": "You're on a catwalk.",
+    "long_desc": "You are standing on a wooden catwalk suspended high in the trees of\na deep forest. The forest floor lies some fifty feet below you, and\nis hidden in shadow. The catwalk continues south. To the north lies\nan ornately carved wooden archway.",
+    "exits": [
+      63,
+      0,
+      0,
+      0,
+      59,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+]
