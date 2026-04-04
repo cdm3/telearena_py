@@ -1,126 +1,164 @@
 [
   {
-    "room": 2,
-    "type": 9
-  },
-  {
     "room": 3,
-    "type": 1
+    "shop_cat": 1,
+    "shop_type": 1,
+    "shop_tier": 1
   },
   {
     "room": 4,
-    "type": 6
+    "shop_cat": 0,
+    "shop_type": 5,
+    "shop_tier": 1
   },
   {
     "room": 5,
-    "type": 8
+    "shop_cat": 0,
+    "shop_type": 8,
+    "shop_tier": 1
   },
   {
     "room": 6,
-    "type": 2
+    "shop_cat": 2,
+    "shop_type": 2,
+    "shop_tier": 1
   },
   {
     "room": 7,
-    "type": 3
+    "shop_cat": 3,
+    "shop_type": 3,
+    "shop_tier": 1
   },
   {
     "room": 8,
-    "type": 5
+    "shop_cat": 0,
+    "shop_type": 5,
+    "shop_tier": 1
   },
   {
     "room": 9,
-    "type": 4
+    "shop_cat": 4,
+    "shop_type": 4,
+    "shop_tier": 1
   },
   {
     "room": 11,
-    "type": 11
+    "shop_cat": 0,
+    "shop_type": 11,
+    "shop_tier": 2
   },
   {
     "room": 12,
-    "type": 11
+    "shop_cat": 0,
+    "shop_type": 11,
+    "shop_tier": 2
   },
   {
     "room": 16,
-    "type": 2
+    "shop_cat": 2,
+    "shop_type": 5,
+    "shop_tier": 2
   },
   {
     "room": 20,
-    "type": 10
+    "shop_cat": 0,
+    "shop_type": 8,
+    "shop_tier": 2
   },
   {
     "room": 22,
-    "type": 1
+    "shop_cat": 1,
+    "shop_type": 1,
+    "shop_tier": 2
   },
   {
     "room": 24,
-    "type": 4
-  },
-  {
-    "room": 28,
-    "type": 9
+    "shop_cat": 4,
+    "shop_type": 5,
+    "shop_tier": 2
   },
   {
     "room": 30,
-    "type": 3
+    "shop_cat": 3,
+    "shop_type": 3,
+    "shop_tier": 2
   },
   {
     "room": 32,
-    "type": 6
-  },
-  {
-    "room": 34,
-    "type": 7
+    "shop_cat": 0,
+    "shop_type": 5,
+    "shop_tier": 2
   },
   {
     "room": 40,
-    "type": 5
+    "shop_cat": 0,
+    "shop_type": 5,
+    "shop_tier": 2
   },
   {
     "room": 41,
-    "type": 6
+    "shop_cat": 0,
+    "shop_type": 5,
+    "shop_tier": 3
   },
   {
     "room": 42,
-    "type": 8
+    "shop_cat": 0,
+    "shop_type": 8,
+    "shop_tier": 3
   },
   {
     "room": 43,
-    "type": 4
+    "shop_cat": 4,
+    "shop_type": 5,
+    "shop_tier": 3
   },
   {
     "room": 44,
-    "type": 1
+    "shop_cat": 1,
+    "shop_type": 1,
+    "shop_tier": 3
   },
   {
     "room": 45,
-    "type": 3
+    "shop_cat": 3,
+    "shop_type": 3,
+    "shop_tier": 3
   },
   {
     "room": 46,
-    "type": 2
-  },
-  {
-    "room": 47,
-    "type": 9
+    "shop_cat": 2,
+    "shop_type": 2,
+    "shop_tier": 3
   },
   {
     "room": 62,
-    "type": 2
+    "shop_cat": 2,
+    "shop_type": 2,
+    "shop_tier": 3
   },
   {
     "room": 63,
-    "type": 3
+    "shop_cat": 3,
+    "shop_type": 3,
+    "shop_tier": 3
   },
   {
     "room": 67,
-    "type": 1
+    "shop_cat": 1,
+    "shop_type": 1,
+    "shop_tier": 3
   },
   {
     "room": 70,
-    "type": 8
+    "shop_cat": 0,
+    "shop_type": 8,
+    "shop_tier": 3
   },
   {
     "room": 74,
-    "type": 4
+    "shop_cat": 4,
+    "shop_type": 5,
+    "shop_tier": 3
   }
 ]

@@ -20,6 +20,22 @@ from . import shops
 _data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
 
+import re as _re
+_SHORT_DESC_RE = _re.compile(
+    r"^you(?:'re| are)(?:\s+(?!in\b|inside\b|on\b|at\b)\w+)*\s+(?:in|inside|on|at)\s+(?:the\s+)?(.+?)\.?\s*$",
+    _re.IGNORECASE,
+)
+
+def _room_short_name(room, loc):
+    """Extract a terse room name from short_desc, e.g. 'north plaza'."""
+    if room is None:
+        return f'Room {loc}'
+    m = _SHORT_DESC_RE.match(room.short_desc)
+    if m:
+        return m.group(1)
+    return room.short_desc
+
+
 class GameEngine:
     """
     Main game engine. Manages state and dispatches commands.
@@ -40,6 +56,7 @@ class GameEngine:
         self.state      = 0       # 0=creation, PLYING=playing, EXTING=exiting
         self.tick       = 0       # game tick counter
         self.running    = False
+        self.combat_target = None  # monster instance id for auto-attack
 
         # Output buffer - UI reads from here
         self._output_buf = []     # list of (color_attr, text) segments
@@ -52,12 +69,16 @@ class GameEngine:
     # ------------------------------------------------------------------
 
     def load_data(self):
-        """Load all game data from JSON files."""
+        """Load all game data from JSON files and runtime state."""
         msg.load_messages()
         self._load_items()
         self._load_spells()
         self.world.load()
         self.monster_mgr.load_types()
+        
+        # Load persistence state (if any)
+        self.world.load_state()
+        self.monster_mgr.load_state()
 
     def _load_items(self):
         path = os.path.join(_data_dir, 'items.json')
@@ -342,7 +363,7 @@ class GameEngine:
         char = self.char
         text = text.strip()
         if not text:
-            return ''
+            return self._look_room()
 
         words = text.split()
         cmd = words[0].lower()
@@ -350,6 +371,11 @@ class GameEngine:
         arg1 = args[0].lower() if args else ''
         arg2 = args[1].lower() if len(args) > 1 else ''
         arg_str = ' '.join(args) if args else ''
+
+        # Cancel auto-attack on non-combat/status commands
+        if cmd not in ('attack', 'a', 'look', 'l', 'status', 'st', 'health', 'he', 
+                        'experience', 'ep', 'exp', 'inventory', 'i', 'spells', 'sp', 'help', '?'):
+            self.combat_target = None
 
         # Tick the game
         self._game_tick()
@@ -517,12 +543,15 @@ class GameEngine:
         if char.parcnt:
             return '***\nYou\'re paralyzed!\n'
         char.save()
+        self.world.save()
+        self.monster_mgr.save()
+        
         self.state = EXTING
         self.running = False
         out = msg.get('EXITTA') if 'EXITTA' in msg._messages else '***\nExiting Tele-Arena...\n'
         return out
 
-    def _look_room(self):
+    def _look_room(self, brief=False):
         char = self.char
         room = self.world.get_room(char.loc)
         if room is None:
@@ -530,31 +559,14 @@ class GameEngine:
 
         out = '***\n'
 
-        if room.is_dungeon and not room.is_lit() and char.light <= 0:
+        if room.is_dungeon and not room.is_lit() and not self._has_light(char):
             return '***\n\x1b[1;31mIt is too dark to see!\x1b[1;37m\n'
 
-        # Room description (bright white)
-        if room.long_desc:
-            out += '\x1b[1;37m' + room.long_desc[:500] + '\x1b[1;37m\n'
-        else:
-            out += '\x1b[1;37m' + room.short_desc + '\x1b[1;37m\n'
-
-        # Show exits (bright cyan)
-        exits_str = self._get_exits_str(room)
-        if exits_str:
-            out += f'\x1b[1;36mObvious exits: {exits_str}.\x1b[1;37m\n'
-
-        # Show items in room
-        item_descs = []
-        for i in range(NMRMIT):
-            itm = room.get_item(i)
-            if itm != 255 and itm < len(self.items_db):
-                item_descs.append(self.items_db[itm].get('desc', self.items_db[itm].get('name', 'item')))
-        if item_descs:
-            for desc in item_descs:
-                out += msg.get('SOMTNG') + ' ' + desc + msg.get('ONFLOR')
-        else:
-            out += msg.get('NOTING')
+        # Room name header in yellow (matches original game), then long desc in bright white if not brief.
+        out += '\x1b[1;33m' + room.short_desc + '\x1b[1;37m\n'
+        if room.long_desc and not brief:
+            colored_desc = room.long_desc[:500].replace('\n', '\x1b[1;37m\n\x1b[1;37m')
+            out += '\x1b[1;37m' + colored_desc + '\x1b[1;37m\n'
 
         # Show townsfolk
         folk_in_room = self.world.get_townsfolk_in_room(char.loc)
@@ -571,10 +583,27 @@ class GameEngine:
             inst = self.monster_mgr.instances[mid]
             mtype = inst.type
             article_name = f'{mtype.article.capitalize()} {mtype.name}'
-            out += msg.get('MONGRN') + msg.get('SOMMN3', article_name, 'is')
+            out += msg.get('MONRED') + msg.get('SOMMN3', article_name, 'is')
 
         if not folk_in_room and not monsters_here:
             out += msg.get('BYSELF')
+
+        # Show items in room
+        item_descs = []
+        for i in range(NMRMIT):
+            itm = room.get_item(i)
+            if itm != 255 and itm < len(self.items_db):
+                item_descs.append(self.items_db[itm].get('desc', self.items_db[itm].get('name', 'item')))
+        if item_descs:
+            for desc in item_descs:
+                out += msg.get('SOMTNG') + ' ' + desc + msg.get('ONFLOR')
+        else:
+            out += msg.get('NOTING')
+
+        # Show exits (bright cyan)
+        exits_str = self._get_exits_str(room)
+        if exits_str:
+            out += f'\x1b[1;34mObvious exits: {exits_str}.\x1b[1;37m\n'
 
         # Show shop prompt
         shop_type = room.shop_type
@@ -587,7 +616,8 @@ class GameEngine:
         elif shop_type == SHOP_VAULT:
             out += 'Type BALANCE, DEPOSIT <amount>, or WITHDRAW <amount>.\n'
         elif shop_type == SHOP_TEMPLE:
-            out += 'Type DONATE <amount> GOLD to make an offering.\n'
+            out += ('Type BUY HEALING, BUY CURING, BUY REMOVAL, or BUY RESTORING.\n'
+                    'Type DONATE <amount> GOLD to make an offering.\n')
         elif shop_type == SHOP_ARENA:
             out += 'You can fight the monsters here. Type ATTACK <monster> to engage.\n'
 
@@ -598,8 +628,19 @@ class GameEngine:
         for d in range(10):
             dest = room.exits[d]
             if dest != 0:
-                parts.append(SDIR[d])
+                parts.append(ADIR[d])
         return ', '.join(parts) if parts else 'none'
+
+    def _has_light(self, char):
+        """Check if character has an active light source (torch burning or holding a glowstone)."""
+        if getattr(char, 'light', 0) > 0:
+            return True
+        for itm_idx in char.invent:
+            if 0 <= itm_idx < len(self.items_db):
+                item = self.items_db[itm_idx]
+                if item and item.get('effect') == EFF_LIGHT:
+                    return True
+        return False
 
     def _cmd_status(self):
         char = self.char
@@ -616,7 +657,9 @@ class GameEngine:
         status = STATUS_NAMES[char.status] if char.status < len(STATUS_NAMES) else 'Normal'
         badge = BADGE_COLORS[char.badge] if char.badge < len(BADGE_COLORS) else ''
 
-        out = msg.get('STATS', race, cls, lvl, str(char.exp), badge,
+        next_xp = char.get_next_level_xp()
+        exp_str = f'{char.exp} / {next_xp}'
+        out = msg.get('STATS', race, cls, lvl, exp_str, badge,
                        char.intl, char.know, char.phys, char.stam,
                        char.agil, char.chrs,
                        char.splpts, char.mspts,
@@ -626,7 +669,7 @@ class GameEngine:
         if 'Race:' not in out:
             # Fallback if STATS message not loaded
             out = (f'***\nRace:         {race}\nClass:        {cls}\nLevel:        {lvl}\n'
-                   f'Experience:   {char.exp}\nRune:         {badge}\n\n'
+                   f'Experience:   {exp_str}\nRune:         {badge}\n\n'
                    f'Intellect:    {char.intl}\nKnowledge:    {char.know}\n'
                    f'Physique:     {char.phys}\nStamina:      {char.stam}\n'
                    f'Agility:      {char.agil}\nCharisma:     {char.chrs}\n\n'
@@ -649,9 +692,12 @@ class GameEngine:
     def _cmd_experience(self):
         char = self.char
         badge = BADGE_COLORS[char.badge] if char.badge < len(BADGE_COLORS) else ''
-        out = msg.get('STATS3', char.display_level, str(char.exp), badge)
+        next_xp = char.get_next_level_xp()
+        exp_str = f'{char.exp} / {next_xp}'
+        
+        out = msg.get('STATS3', char.display_level, exp_str, badge)
         if 'Level:' not in out:
-            out = f'***\nLevel:      {char.display_level}\nExperience: {char.exp}\nRune:       {badge}\n'
+            out = f'***\nLevel:      {char.display_level}\nExperience: {exp_str}\nRune:       {badge}\n'
         return out
 
     def _cmd_inventory(self):
@@ -715,7 +761,7 @@ class GameEngine:
         room = self.world.get_room(char.loc)
         if room is None:
             return '***\nNo exits visible.\n'
-        if room.is_dungeon and not room.is_lit() and char.light <= 0:
+        if room.is_dungeon and not room.is_lit() and not self._has_light(char):
             return '***\nIt is too dark to see!\n'
         exits_str = self._get_exits_str(room)
         # Show destination room numbers for each exit to help navigation
@@ -757,11 +803,16 @@ class GameEngine:
         if shop_type in (SHOP_EQUIPMENT, SHOP_WEAPON, SHOP_ARMOR, SHOP_MAGIC):
             out += '\nShop commands:\n  LIST ITEMS  - See items for sale\n  BUY <item>  - Purchase an item\n  SELL <item> - Sell an item\n'
         if shop_type == SHOP_GUILD:
-            out += '\nGuild commands:\n  LIST SPELLS    - See spells for purchase\n  BUY SPELL <spell> - Purchase a spell\n'
+            out += '\nGuild commands:\n  LIST SPELLS    - See spells for purchase\n  BUY SPELL <spell> - Purchase a spell\n  BUY TRAINING   - Advance your level (cost: (level+1)*5 gold)\n  BUY PROMOTION  - Become an elite class (cost: 1000 gold)\n'
         if shop_type == SHOP_VAULT:
             out += '\nVault commands:\n  BALANCE  - Check account\n  DEPOSIT <amount>  - Deposit gold\n  WITHDRAW <amount> - Withdraw gold\n'
         if shop_type == SHOP_TEMPLE:
-            out += '\nTemple commands:\n  DONATE <amount> GOLD - Make a donation for XP\n'
+            out += ('\nTemple commands:\n'
+                    '  BUY HEALING    - Fully restore HP (cost: (max-current)/10 + 1 gold)\n'
+                    '  BUY CURING     - Cure poison (3 gold)\n'
+                    '  BUY REMOVAL    - Remove paralysis (10 gold)\n'
+                    '  BUY RESTORING  - Restore drained stats (25 gold)\n'
+                    '  DONATE <amount> GOLD - Make a donation for XP\n')
         if shop_type == SHOP_TAVERN:
             out += '\nTavern commands:\n  BUY FOOD  - Buy a meal\n  BUY DRINK - Buy a drink\n  PLAY SLOTS - Play the slot machine\n  PLAY BONES - Play dice\n'
         return out
@@ -794,21 +845,162 @@ class GameEngine:
             out += self._look_room()
         return out
 
+    def _trigger_room_trap(self, char, room, msg_idx_override=0):
+        """Processes a trap trigger upon entering a room or taking a situational exit."""
+        trap_type = room.trap_type
+        if msg_idx_override > 0:
+            trap_type = 1  # Treat situational message links as pit traps
+
+        if trap_type == 0:
+            return ""
+
+        # Rogue trap avoidance — uses XSTT rogpen for spike traps, 0 for others
+        if char.clas == 3:  # CLS_ROGUE
+            rogpen = 0
+            if trap_type == 2:
+                xdes_idx = room.trap_arg if room.trap_arg > 0 else 1
+                xstt_raw = msg.get(f'XSTT{xdes_idx}', '10 30 0')
+                xstt_vals = [int(x) for x in xstt_raw.split() if x.lstrip('-').isdigit()]
+                rogpen = xstt_vals[2] if len(xstt_vals) > 2 else 0
+            avoid_chance = (char.agil + char.know + char.level) - rogpen
+            if random.randint(1, 100) <= avoid_chance:
+                return '\n' + msg.get('AVDTRP', 'Your rogue abilities allowed you to detect and avoid a trap!') + '\n'
+
+        out = ""
+        if trap_type == 1:  # Pit trap — fall and land in dest room
+            msg_text = msg.get('PYOU1', 'You just fell through a trap door in the floor!')
+            dmg = random.randint(10, 20)
+            char.hits = max(1, char.hits - dmg)
+            out = f"\n*** {msg_text.strip()}\n*** You take {dmg} damage from the fall!\n"
+            if room.trap_arg > 0 and msg_idx_override == 0:
+                char.loc = room.trap_arg + DUNOFF
+
+        elif trap_type == 2:  # Spike/damage trap — look up XDES/XSTT by index
+            xdes_idx = room.trap_arg if room.trap_arg > 0 else 1
+            msg_text = msg.get(f'XDES{xdes_idx}', 'A trap springs on you!')
+            xstt_raw = msg.get(f'XSTT{xdes_idx}', '10 30 0')
+            xstt_vals = [int(x) for x in xstt_raw.split() if x.lstrip('-').isdigit()]
+            mindam = xstt_vals[0] if xstt_vals else 10
+            maxdam = xstt_vals[1] if len(xstt_vals) > 1 else 30
+            dmg = random.randint(mindam, maxdam)
+            char.hits = max(1, char.hits - dmg)
+            out = f"\n*** {msg_text.strip()}\n*** You take {dmg} damage!\n"
+
+        elif trap_type == 3:  # One-way passage — silently teleport to dest room
+            dest = room.trap_arg
+            if dest > 0:
+                msg_text = msg.get('PYOU1', 'You just fell through a trap door in the floor!')
+                dmg = random.randint(5, 15)
+                char.hits = max(1, char.hits - dmg)
+                char.loc = dest + DUNOFF
+                out = f"\n*** {msg_text.strip()}\n*** You take {dmg} damage from the fall!\n"
+
+        return out
+
     def _cmd_move(self, direction):
         char = self.char
 
-        if char.parcnt > 0:
-            return msg.get('PARLYZ') if 'PARLYZ' in msg._messages else '***\nYou\'re paralyzed!\n'
+        # Check for attack delay or combat engagement
+        room_monsters = self.monster_mgr.get_room_monsters(char.loc)
         if char.attdly > 0:
-            return msg.get('CNTMOV') if 'CNTMOV' in msg._messages else '***\nYou can\'t move yet!\n'
+            return msg.get('ATTEXH') if 'ATTEXH' in msg._messages else f'***\nYou are still recovering from your last action! ({char.attdly})\n'
+        
+        # C-style combat check: can move if no monsters OR cbtcnt is 0
+        if room_monsters and char.cbtcnt > 0:
+            return '***\nYou are too busy fighting to move right now!\n'
+            
+        if char.parcnt > 0:
+            return msg.get('PARLYZ') if 'PARLYZ' in msg._messages else '***\nYou are paralyzed and cannot move!\n'
 
         room = self.world.get_room(char.loc)
         if room is None:
             return '***\nYou can\'t go that way!\n'
 
         dest = room.get_exit(direction)
+        out = ''
+        
+        # Check for gates/locked doors BEFORE checking if dest == 0
+        active_gate = None
+        skip_redirect = False
+        for gate in room.gates:
+            if gate['direction'] == direction:
+                active_gate = gate
+                break
+        
+        # If no room-specific gate, check for global portals if exit is -99
+        if not active_gate and dest == -99:
+            for gate in self.world.global_gates:
+                if gate['direction'] == direction:
+                    active_gate = gate
+                    break
+        
+        if active_gate:
+            key_idx = active_gate['item_idx']
+            # If key_idx > 0, check inventory for that specific item index
+            if key_idx > 0:
+                found_slot = -1
+                for i in range(NUMHLD):
+                    if char.invent[i] == key_idx:
+                        found_slot = i
+                        break
+                
+                # If key missing, check if Rogue can pick it or climb
+                if found_slot == -1:
+                    if char.clas == 3: # CLS_ROGUE
+                        # Authentic TA formula: (Agil + Know + Level) - Penalty
+                        penalty = active_gate.get('rogue_penalty', 0)
+                        pick_chance = (char.agil + char.know + char.level) - penalty
+                        
+                        if random.randint(1, 100) <= pick_chance:
+                            if key_idx == 145: # ROPE
+                                out += f'*** You use your Rogue skills to climb the surface without a rope!\n'
+                            else:
+                                out += f'*** You use your Rogue skills to pick the lock!\n'
+                        else:
+                            if key_idx == 145: # ROPE
+                                return f'***\nYou try to climb without a rope, but you can\'t find enough handholds.\n'
+                            else:
+                                return f'***\nThe door is locked! Your attempts to pick it fail.\n'
+                    else:
+                        iname = self.items_db[key_idx]['name'] if 0 <= key_idx < len(self.items_db) else "a specific key"
+                        if key_idx == 145: # ROPE
+                            return f'***\nThis vertical climb requires a rope to pass safely!\n'
+                        return f'***\nThe door is locked! You need {iname}.\n'
+                else:
+                    # Found the key!
+                    iname = self.items_db[key_idx]['name'] if 0 <= key_idx < len(self.items_db) else "a key"
+                    out += f'*** You use the {iname} to unlock the door.\n'
+                    if active_gate.get('consume', 0):
+                        char.invent[found_slot] = -1
+                        char.charge[found_slot] = 0
+                        from .character import recalc_encumbrance
+                        recalc_encumbrance(char, self.items_db)
+            
+            # If the room exit was 0 or a portal marker, use the gate's destination
+            if dest <= 0:
+                dest = active_gate.get('to_room', 0)
+                if dest > 0:
+                    out += '\n*** You feel a strange sensation as you pass through the gateway...\n'
+                    skip_redirect = True
+
         if dest == 0:
             return msg.get('NOEXTN', '', SDIR[direction], 0, 0) if 'NOEXTN' in msg._messages else f'***\nThere is no exit to the {SDIR[direction]}!\n'
+
+        # If dest is the hardcoded dungeon return room and we're coming from dungeon,
+        # redirect to where the player actually entered the dungeon from
+        if dest == self.world.DUNGEON_TOWN_ENTRANCE and not skip_redirect:
+            cur_room = self.world.get_room(char.loc)
+            if cur_room and cur_room.is_dungeon:
+                dest = char.dungeon_return_room
+
+        # Tele-Arena 5.x parity: Some exits point to trap message IDs (e.g. 1938 for Pit)
+        # instead of a room ID. If dest_id is in a trap message range, trigger it.
+        # Known trap messages: 1900-2000
+        original_dest = dest - 100 # Original 1-based room/msg ID
+        if 1900 <= original_dest <= 2000:
+            # Trigger trap on current room but using the special link's message
+            trap_msg = self._trigger_room_trap(char, room, msg_idx_override=original_dest)
+            return out + trap_msg
 
         dest_room = self.world.get_room(dest)
         if dest_room is None:
@@ -816,6 +1008,15 @@ class GameEngine:
 
         old_loc = char.loc
         char.loc = dest
+
+        # Trigger room traps (trap data loaded from TRIG records in dungeon_data.json)
+        trap_msg = self._trigger_room_trap(char, dest_room)
+        if trap_msg:
+            out += trap_msg
+
+        # Track dungeon entry point for correct return routing
+        if dest_room.is_dungeon and not self.world.is_dungeon(old_loc):
+            char.dungeon_return_room = old_loc
 
         # Reduce food/water
         char.food = max(0, char.food - 10)
@@ -825,22 +1026,30 @@ class GameEngine:
         if char.light > 0:
             char.light -= 1
 
-        out = ''
-
-        # Trigger random monster encounter in dungeon
-        if dest_room.is_dungeon:
+        # Trigger random monster encounter in dungeon (but not in arenas)
+        if dest_room.is_dungeon and dest not in (2, 28, 47):
             existing = self.monster_mgr.get_room_monsters(dest)
             if not existing and random.random() < 0.3:
-                # Chance of new encounter based on area
+                # Determine appropriate terrain and level for area
+                # For now, Dungeon 1 (rooms 101-200) uses Terrain 1 (Dungeon)
+                target_terr = 1
                 depth = (dest - DUNOFF)
-                min_type = min(depth // 5, len(self.monster_mgr.types) - 1)
-                max_type = min(min_type + 3, len(self.monster_mgr.types) - 1)
-                if self.monster_mgr.types:
-                    type_id = random.randint(min_type, max(min_type, max_type))
-                    lvl = max(1, depth // 10 + 1)
-                    self.monster_mgr.spawn(type_id, dest, lvl)
+                max_lvl = max(1, (depth // 10) + 1)
+                
+                # Filter candidates from loaded types
+                candidates = [tid for tid, mtype in enumerate(self.monster_mgr.types) 
+                            if mtype.terr == target_terr and mtype.level <= max_lvl]
+                
+                if not candidates:
+                    # Fallback to Terrain 0 if no Terrain 1 matches (Arena/Common)
+                    candidates = [tid for tid, mtype in enumerate(self.monster_mgr.types) 
+                                if mtype.terr == 0 and mtype.level <= max_lvl]
 
-        out += self._look_room()
+                if candidates:
+                    type_id = random.choice(candidates)
+                    self.monster_mgr.spawn(type_id, dest, level=max_lvl)
+
+        out += self._look_room(brief=True)
 
         # Hunger/thirst warnings
         if char.food <= 0:
@@ -928,12 +1137,11 @@ class GameEngine:
         # Find monster
         inst = self.monster_mgr.get_monster_by_name(char.loc, target)
         if inst:
+            self.combat_target = inst.id
             msgs = cbt.attack_monster(char, inst, self.items_db, self.world, self)
             out = ''.join(msgs.get('you', []))
-            if char.alive and inst.alive:
-                # Monster attacks back
-                mon_msgs = cbt.monster_attacks(inst, char, self)
-                out += ''.join(mon_msgs)
+            if not inst.alive:
+                self.combat_target = None
             return out
 
         return f'***\nYou don\'t see {target} here.\n'
@@ -1082,12 +1290,22 @@ class GameEngine:
         if 1 <= itype <= 10:
             old_wep = char.weapon
             char.weapon = item_idx
+            # If we had a non-default weapon, move it to the inventory slot we just vacated
+            if old_wep != DEFWEP:
+                char.invent[slot] = old_wep
+            else:
+                char.invent[slot] = -1
             char.wepdmg = 0
             return f'***\nYou wield {item.get("desc", iname)}.\n'
         # Armor: type >= 11
         elif itype >= 11:
             old_arm = char.armor
             char.armor = item_idx
+            # If we had a non-default armor, move it to the inventory slot we just vacated
+            if old_arm != DEFARM:
+                char.invent[slot] = old_arm
+            else:
+                char.invent[slot] = -1
             char.ac = item.get('armor', 0)
             char.armdmg = 0
             return f'***\nYou put on {item.get("desc", iname)}.\n'
@@ -1098,17 +1316,29 @@ class GameEngine:
         char = self.char
         name_lower = item_name.lower()
 
+        # Find empty slot
+        slot = -1
+        for i in range(NUMHLD):
+            if char.invent[i] == -1:
+                slot = i
+                break
+        
+        if slot == -1:
+            return '***\nYour inventory is full! You can\'t unequip anything.\n'
+
         # Check weapon
         if char.weapon >= 0 and char.weapon < len(self.items_db):
             wep = self.items_db[char.weapon]
-            if name_lower in wep.get('name', '').lower():
+            if name_lower in wep.get('name', '').lower() or name_lower in wep.get('desc', '').lower():
+                char.invent[slot] = char.weapon
                 char.weapon = DEFWEP
                 return f'***\nYou put away {wep.get("name", "your weapon")}.\n'
 
         # Check armor
         if char.armor >= 0 and char.armor < len(self.items_db):
             arm = self.items_db[char.armor]
-            if name_lower in arm.get('name', '').lower():
+            if name_lower in arm.get('name', '').lower() or name_lower in arm.get('desc', '').lower():
+                char.invent[slot] = char.armor
                 char.armor = DEFARM if DEFARM < len(self.items_db) else 0
                 char.ac = 0
                 return f'***\nYou remove {arm.get("name", "your armor")}.\n'
@@ -1219,38 +1449,84 @@ class GameEngine:
         char = self.char
         room = self.world.get_room(char.loc)
         shop_type = room.shop_type if room else SHOP_NONE
+        shop_tier = self.world.get_shop_tier(char.loc)
 
         if item_name.startswith('spell '):
             return self._cmd_buy_spell(item_name[6:])
+        if item_name in ('training', 'train'):
+            if shop_type != SHOP_GUILD:
+                return '***\nYou must be at a guild hall to buy training.\n'
+            cost = (char.level + 1) * 5
+            if char.gold < cost:
+                return f'***\nYou need {cost} gold to pay for training!\n'
+            if char.can_advance():
+                char.gold -= cost
+                char.advance_level()
+                return '***\nAfter a rigorous mental and physical training session, you have achieved a new level!\n'
+            else:
+                return '***\nYou are not ready for any further training, you must first prove yourself in combat!\n'
+
+        if item_name == 'promotion':
+            if shop_type != SHOP_GUILD:
+                return '***\nYou must be at a guild hall to buy a promotion.\n'
+            cost = 1000
+            if char.gold < cost:
+                return '***\nYou cannot afford a promotion at this time!\n'
+            if char.can_promote():
+                char.gold -= cost
+                char.promote()
+                return f'***\nCongratulations! You have been promoted to the rank of {char.class_name}!\n'
+            else:
+                return '***\nYou are not ready for a promotion, you must first achieve greater experience!\n'
         if item_name in ('food', 'drink', 'water', 'ale', 'meal'):
             if shop_type in (SHOP_TAVERN, SHOP_INN):
                 ok, out = shops.buy_food_drink(char, item_name, self.items_db)
                 return out
             return '***\nYou can\'t buy that here.\n'
 
-        if shop_type not in (SHOP_EQUIPMENT, SHOP_WEAPON, SHOP_ARMOR, SHOP_MAGIC):
-            return '***\nThere\'s no shop here.\n'
+        if item_name == 'passage':
+            # TA Gold: Passage between Room 11 (Port Docks) and Room 12 (North Shore)
+            if char.loc in (11, 12):
+                if char.loc == 11 and char.badge < 1:
+                    return f"***\n{msg.get('NORUNE')}\n"
+                    
+                cost = 50
+                if char.gold < cost:
+                    return msg.get('CNTAFD', 'passage')
+                
+                char.gold -= cost
+                char.loc = 12 if char.loc == 11 else 11
+                out = f"***\n{msg.get('YOUVOY')}\n\n"
+                out += self._look_room()
+                return out
+            return "***\nThere is no ship here to buy passage on.\n"
 
-        ok, out = shops.buy_item(char, item_name, shop_type, self.items_db, self.world)
+        if shop_type == SHOP_TEMPLE:
+            ok, out = shops.temple_buy(char, item_name)
+            return out
+
+        if not room or getattr(room, 'shop_cat', 0) == 0:
+            return '***\nThere\'s no shop here.\n'
+        ok, out = shops.buy_item(char, item_name, room.shop_cat, room.shop_tier, self.items_db, self.world)
         return out
 
     def _cmd_sell(self, item_name):
         char = self.char
         room = self.world.get_room(char.loc)
-        shop_type = room.shop_type if room else SHOP_NONE
-        if shop_type not in (SHOP_EQUIPMENT, SHOP_WEAPON, SHOP_ARMOR, SHOP_MAGIC):
+        if not room or getattr(room, 'shop_cat', 0) == 0:
             return '***\nThere\'s no shop here.\n'
-        ok, out = shops.sell_item(char, item_name, shop_type, self.items_db, self.world)
+        ok, out = shops.sell_item(char, item_name, room.shop_cat, room.shop_tier, self.items_db, self.world)
         return out
 
     def _cmd_list(self, what):
         char = self.char
         room = self.world.get_room(char.loc)
         shop_type = room.shop_type if room else SHOP_NONE
+        shop_tier = self.world.get_shop_tier(char.loc)
 
         if what in ('items', 'i'):
-            if shop_type in (SHOP_EQUIPMENT, SHOP_WEAPON, SHOP_ARMOR, SHOP_MAGIC):
-                return shops.list_shop_items(shop_type, self.items_db, char)
+            if room and getattr(room, 'shop_cat', 0) > 0:
+                return shops.list_shop_items(room.shop_cat, room.shop_tier, self.items_db, char)
             return '***\nThere\'s no shop here.\n'
 
         if what in ('spells', 'sp'):
@@ -1312,7 +1588,9 @@ class GameEngine:
             return '***\nYou must be at a temple to donate.\n'
         ok, out = shops.donate_to_temple(char, amount)
         if ok:
-            cbt.check_level_up(char, self, [])
+            msg_up = cbt.check_level_up(char, self, [])
+            if msg_up:
+                out += msg_up
         return out
 
     def _cmd_slots(self):
@@ -1331,15 +1609,39 @@ class GameEngine:
 
     def _cmd_ring_gong(self):
         char = self.char
+        
+        if char.attdly > 0:
+            return msg.get('ATTEXH') if 'ATTEXH' in msg._messages else '***\nYou are still recovering from your last action!\n'
+            
         room = self.world.get_room(char.loc)
         if room and room.shop_type == SHOP_ARENA:
-            # Spawn arena monsters
             if self.monster_mgr.types:
-                count = random.randint(1, 3)
-                for _ in range(count):
-                    tid = random.randint(0, min(5, len(self.monster_mgr.types) - 1))
-                    self.monster_mgr.spawn(tid, char.loc)
-                return '***\nYou ring the gong! Creatures emerge from the pits!\n' + self._look_room()
+                char.attdly = 5
+                char.cbtcnt += 3
+                
+                target_terr = 0  # Room 2 (Low Level)
+                if char.loc == 28:
+                    target_terr = 1  # Room 28 (Mid Level)
+                elif char.loc == 47:
+                    target_terr = 2  # Room 47 (High Level)
+                
+                valid_types = [tid for tid, mtype in enumerate(self.monster_mgr.types) if mtype.terr == target_terr]
+                if not valid_types:
+                    valid_types = list(range(len(self.monster_mgr.types)))
+
+                out = msg.get('RNGGNG', char.userid)
+                
+                if len(self.monster_mgr.get_room_monsters(char.loc)) >= 4:
+                    return out
+
+                tid = random.choice(valid_types)
+                inst = self.monster_mgr.spawn(tid, char.loc)
+                if inst:
+                    inst.prey = 0  # immediately aggro on player
+                    inst.attdly = 0  # standard instant aggro
+                mtype = self.monster_mgr.types[tid]
+                out += msg.get('MONENT', mtype.article.capitalize(), mtype.name)
+                return out
         return '***\nNothing happens.\n'
 
     def _cmd_track(self, target):
@@ -1366,27 +1668,66 @@ class GameEngine:
             char.procnt -= 1
         if char.actcnt > 0:
             char.actcnt -= 1
+        if char.cbtcnt > 0:
+            char.cbtcnt -= 1
 
         # Stat effect counters
         for i in range(8):
             if char.stacnt[i] > 0:
                 char.stacnt[i] -= 1
 
-        # Regeneration
-        if self.tick % 5 == 0:
+        # Regeneration (every 5 seconds at 10Hz)
+        if self.tick % 50 == 0:
             if char.hits < char.mhits:
                 regen = max(1, char.stam // 10)
                 char.hits = min(char.mhits, char.hits + regen)
             if char.splpts < char.mspts:
                 char.splpts = min(char.mspts, char.splpts + 1)
 
-        # Monster regen
+        # Monster regen (every 10 seconds at 1Hz)
         if self.tick % 10 == 0:
             self.monster_mgr.tick_regen()
 
-        # Auto-save every 100 ticks
+        # Auto-save every 100 seconds (100 ticks at 1Hz)
         if self.tick % 100 == 0 and char.userid:
             char.save()
+
+        out = ''
+        if char.alive:
+            # Auto-attack: fire player's round when attdly expires and target is set
+            if char.attdly == 0 and self.combat_target is not None:
+                inst = self.monster_mgr.instances.get(self.combat_target)
+                if inst and inst.alive and inst.dloc == char.loc:
+                    msgs = cbt.attack_monster(char, inst, self.items_db, self.world, self)
+                    out += ''.join(msgs.get('you', []))
+                    if not inst.alive:
+                        self.combat_target = None
+                else:
+                    self.combat_target = None
+
+            # Monster attacks — every 2.5 seconds per monster, only if aggroed
+            for mid in self.monster_mgr.get_room_monsters(char.loc):
+                inst = self.monster_mgr.instances.get(mid)
+                if not inst or not inst.alive:
+                    continue
+                if inst.attdly > 0:
+                    inst.attdly -= 1
+                    continue
+                # Only attack if monster is aggroed (prey != 256)
+                if inst.prey == 256:
+                    continue
+                    
+                mon_msgs = cbt.monster_attacks(inst, char, self)
+                out += ''.join(mon_msgs)
+                
+                # Reset monster delay: 20 seconds (20 ticks at 1Hz)
+                inst.attdly = 20
+                
+                if not char.alive:
+                    self.combat_target = None
+                    break
+
+        return out if out else None
 
     # ------------------------------------------------------------------
     # Public API for UI
@@ -1401,15 +1742,40 @@ class GameEngine:
     def is_exiting(self):
         return self.state == EXTING
 
-    def get_status_line(self):
-        """Return compact status for display in status bar."""
+    def get_status_segments(self):
+        """Return color-coded segments for the status bar: [(text, color_name), ...]"""
         if self.char is None:
-            return 'Tele-Arena 5.6  |  Not in game'
+            return [('Tele-Arena 5.6  |  Not in game', 'cyan')]
         if not self.is_playing():
-            return f'Tele-Arena 5.6  |  Character Creation  |  {self.char.userid}'
+            return [(f'Tele-Arena 5.6  |  Character Creation  |  {self.char.userid}', 'cyan')]
+        
         char = self.char
-        room = self.world.get_room(char.loc)
-        loc_name = room.short_desc if room else f'Room {char.loc}'
-        return (f'{char.userid} | HP:{char.hits}/{char.mhits} '
-                f'MP:{char.splpts}/{char.mspts} '
-                f'GP:{char.gold} | [{char.loc}] {loc_name}')
+        next_xp = char.get_next_level_xp()
+        
+        # HP color logic: red below 25%
+        hp_pct = char.hits / max(1, char.mhits)
+        hp_color = "red" if hp_pct < 0.25 else "green"
+        
+        # Status logic
+        status_map = {0: "Normal", 1: "Poisoned", 2: "Paralyzed", 3: "Drained"}
+        status_text = status_map.get(char.status, "Unknown")
+        status_color = "white" if char.status == 0 else "green" if char.status == 1 else "magenta" if char.status == 2 else "grey"
+
+        segments = [
+            (f"RM:{char.loc}", "white"),
+        ]
+        if char.dun != 0:
+            segments.append((f"D:{char.dun}", "white"))
+            
+        segments += [
+            (f" HP:{char.hits}/{char.mhits} ", hp_color),
+            (f"MP:{char.splpts}/{char.mspts} ", "cyan"),
+            (f"XP:{char.exp}/{next_xp} ", "white"),
+            (f"GP:{char.gold} ", "yellow"),
+        ]
+        
+        # Only show status if it's something other than normal
+        if char.status != 0:
+            segments.append((f"Status:{status_text}", status_color))
+            
+        return segments

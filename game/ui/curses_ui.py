@@ -61,7 +61,7 @@ def init_colors():
     curses.init_pair(CP_MAGENTA,    curses.COLOR_MAGENTA, -1)
     curses.init_pair(CP_BLUE,       curses.COLOR_BLUE,    -1)
     curses.init_pair(CP_WHITE,      curses.COLOR_WHITE,   -1)
-    curses.init_pair(CP_STATUS,     curses.COLOR_BLACK,   curses.COLOR_CYAN)
+    curses.init_pair(CP_STATUS,     curses.COLOR_CYAN,    -1)
     curses.init_pair(CP_INPUT,      curses.COLOR_WHITE,   -1)
     curses.init_pair(CP_CYAN_BOLD,  curses.COLOR_CYAN,    -1)
     curses.init_pair(CP_GREEN_BOLD, curses.COLOR_GREEN,   -1)
@@ -94,7 +94,11 @@ class ScrollBuffer:
             if not raw:
                 self.lines.append([(None, False, '')])
             else:
-                self.lines.append(parse_ansi_segments(raw) or [(None, False, raw)])
+                segs = parse_ansi_segments(raw)
+                # If parse returns empty, the line was pure ANSI codes (e.g. a bare
+                # reset "\x1b[1;37m" on its own line). Store as blank rather than
+                # falling back to the raw escape string, which would print literally.
+                self.lines.append(segs if segs else [(None, False, '')])
 
         # Trim to max
         if len(self.lines) > self.max_lines:
@@ -123,7 +127,7 @@ def _resolve_attrs(segs):
     for color_name, bold, text in segs:
         pair_idx = COLOR_PAIR_MAP.get((color_name, bold), CP_DEFAULT)
         attr = curses.color_pair(pair_idx)
-        if bold and color_name in ('white', 'cyan', 'green', 'red'):
+        if bold and color_name in ('white', 'cyan', 'green', 'red', 'blue', 'yellow', 'magenta'):
             attr |= curses.A_BOLD
         result.append((attr, text))
     return result
@@ -194,16 +198,18 @@ class CursesUI:
         curses.cbreak()
         curses.noecho()
         self.stdscr.keypad(True)
-        self.stdscr.timeout(100)  # 100 ms input poll for game ticks
+        # 1.0 second tick (1Hz)
+        self.stdscr.timeout(1000)
         curses.curs_set(1)
 
         self._recalc_layout()
 
     def _recalc_layout(self):
         self.max_y, self.max_x = self.stdscr.getmaxyx()
-        # Reserve 2 rows: 1 for status bar, 1 for input line
-        self.output_rows = max(3, self.max_y - 2)
+        # Reserve 3 rows: 1 for status border line, 1 for status text, 1 for input
+        self.output_rows = max(3, self.max_y - 3)
         self.output_cols = self.max_x
+        self.border_row  = self.max_y - 3
         self.status_row  = self.max_y - 2
         self.input_row   = self.max_y - 1
 
@@ -245,13 +251,52 @@ class CursesUI:
                 pass
 
     def _draw_status(self):
-        """Render the status bar."""
+        """Render the status bar with color-coded segments and borders."""
         try:
-            status = self.engine.get_status_line()
-            # Pad/truncate to screen width
-            status = status[:self.max_x - 1].ljust(self.max_x - 1)
-            attr = curses.color_pair(CP_STATUS) | curses.A_BOLD
-            self.stdscr.addstr(self.status_row, 0, status, attr)
+            # 1. Draw horizontal border line above the status line
+            self.stdscr.attrset(curses.color_pair(CP_DEFAULT))
+            self.stdscr.move(self.border_row, 0)
+            self.stdscr.hline(curses.ACS_HLINE, self.max_x)
+            
+            # 2. Render status text segments
+            # Move to status row, clear line, draw leading |
+            self.stdscr.move(self.status_row, 0)
+            self.stdscr.clrtoeol()
+            self.stdscr.addstr(self.status_row, 0, "| ", curses.color_pair(CP_DEFAULT))
+            
+            curr_x = 2
+            segments = self.engine.get_status_segments()
+            for i, (text, color_name) in enumerate(segments):
+                if curr_x >= self.max_x - 2:
+                    break
+                
+                # Logical color name to CP index mapping
+                cp_map = {
+                    'green':   CP_GREEN_BOLD,
+                    'cyan':    CP_CYAN_BOLD,
+                    'white':   CP_WHITE_BOLD,
+                    'yellow':  CP_YELLOW,
+                    'magenta': CP_MAGENTA,
+                    'grey':    CP_WHITE,
+                }
+                cp_idx = cp_map.get(color_name, CP_DEFAULT)
+                attr = curses.color_pair(cp_idx)
+                # Apply extra bold for high-visibility
+                if color_name in ('green', 'cyan', 'white', 'yellow', 'magenta'):
+                    attr |= curses.A_BOLD
+                
+                self.stdscr.addstr(self.status_row, curr_x, text.strip(), attr)
+                curr_x += len(text.strip())
+                
+                # Add separator if not the last segment
+                if i < len(segments) - 1:
+                    sep = " | "
+                    if curr_x + len(sep) < self.max_x - 1:
+                        self.stdscr.addstr(self.status_row, curr_x, sep, curses.color_pair(CP_DEFAULT))
+                        curr_x += len(sep)
+                
+            # Draw closing | at the end of the screen
+            self.stdscr.addstr(self.status_row, self.max_x - 1, "|", curses.color_pair(CP_DEFAULT))
         except curses.error:
             pass
 
@@ -349,11 +394,10 @@ class CursesUI:
             key = self.stdscr.getch()
 
             if key == -1:
-                # Timeout — run a game tick periodically
-                tick_counter += 1
-                if tick_counter >= 10:  # every ~1 second
-                    tick_counter = 0
-                    if self.engine.is_playing():
-                        self.engine._game_tick()
+                # Timeout — run a game tick periodically at 10Hz (every 100ms)
+                if self.engine.is_playing():
+                    tick_out = self.engine._game_tick()
+                    if tick_out:
+                        self.output(tick_out)
             else:
                 self._handle_key(key)

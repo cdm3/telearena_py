@@ -103,26 +103,47 @@ def parse_ansi_segments(text):
 # Map ANSI color codes to (color_name, bold) pairs
 # Format: 'attr' -> (fg_color, bold)
 ANSI_COLOR_MAP = {
-    None:   ('white', False),
-    '':     ('white', False),
-    '0':    ('white', False),
-    '1;37': ('white', True),
-    '0;37': ('white', False),
-    '1;31': ('red', True),
-    '0;31': ('red', False),
-    '1;32': ('green', True),
-    '0;32': ('green', False),
-    '1;33': ('yellow', True),
-    '0;33': ('yellow', False),
-    '1;34': ('blue', True),
-    '0;34': ('blue', False),
-    '1;35': ('magenta', True),
-    '0;35': ('magenta', False),
-    '1;36': ('cyan', True),
-    '0;36': ('cyan', False),
-    '1;5;31': ('red', True),   # blinking red -> just bold red
-    '0m':   ('white', False),
-    '1;37m': ('white', True),
+    None:     ('white', False),
+    '':       ('white', False),
+    '0':      ('white', False),
+    '1':      ('white', True),   # bold only, no color change
+    # White (#15) / Gray (#07)
+    '1;37':   ('white', True),
+    '0;37':   ('white', False),
+    '37':     ('white', False),
+    # Red (#12 Lt.Red / #04 Red)
+    '1;31':   ('red', True),
+    '0;31':   ('red', False),
+    '31':     ('red', False),
+    '1;5;31': ('red', True),     # blinking red -> bold red
+    # Green (#10 Lt.Green / #02 Green)
+    '1;32':   ('green', True),
+    '0;32':   ('green', False),
+    '32':     ('green', False),
+    # Yellow (#14) / Brown (#06)
+    '1;33':   ('yellow', True),
+    '0;33':   ('yellow', False),
+    '33':     ('yellow', False),
+    '0;1;33': ('yellow', True),  # reset+bold+yellow variant
+    # Blue (#09 Lt.Blue / #01 Blue)
+    '1;34':   ('blue', True),
+    '0;34':   ('blue', False),
+    '34':     ('blue', False),
+    # Magenta (#13 Lt.Magenta / #05 Magenta)
+    '1;35':   ('magenta', True),
+    '0;35':   ('magenta', False),
+    '35':     ('magenta', False),
+    # Cyan (#11 Lt.Cyan / #03 Cyan)
+    '1;36':   ('cyan', True),
+    '0;36':   ('cyan', False),
+    '36':     ('cyan', False),
+    # Dark Gray (#08) / Black (#00) — map to default
+    '1;30':   (None, False),
+    '0;30':   (None, False),
+    '30':     (None, False),
+    # Legacy trailing-m variants
+    '0m':     ('white', False),
+    '1;37m':  ('white', True),
 }
 
 

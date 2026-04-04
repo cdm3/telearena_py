@@ -35,8 +35,8 @@ class MonsterType:
         self.sach     = data.get('sach', 0)       # special attack chance
         self.hd       = data.get('hd', 1)         # hit dice
         self.regen    = data.get('regen', 0)      # regeneration rate
-        self.mindam   = data.get('mindam', 1)     # min damage
-        self.maxdam   = data.get('maxdam', 4)     # max damage
+        self.mindam   = data.get('min_dam', data.get('mindam', 1))  # min damage
+        self.maxdam   = data.get('max_dam', data.get('maxdam', 4))  # max damage
         self.minspc   = data.get('minspc', 0)     # min special damage
         self.maxspc   = data.get('maxspc', 0)     # max special damage
         self.effect   = data.get('effect', 0)     # special effect type
@@ -78,13 +78,18 @@ class MonsterType:
         lvl = level if level is not None else self.level
         return max(1, self.hd * lvl * random.randint(4, 8))
 
+    @property
+    def display_name(self):
+        """Returns the name wrapped in bright red ANSI codes."""
+        return f"\u001b[1;31m{self.name}\u001b[0m"
+
 
 class MonsterInstance:
     """
     Active monster instance (arnmon + arnmon2 + arnmon3 + arnmon4).
     """
 
-    def __init__(self, instance_id, mon_type, room_id, level=None):
+    def __init__(self, instance_id, mon_type, room_id, level=None, variant=0):
         self.id       = instance_id
         self.type_id  = mon_type.id
         self.type     = mon_type
@@ -95,9 +100,15 @@ class MonsterInstance:
         self.regen    = mon_type.regen
         self.psn      = mon_type.spcabn  # poison level if applicable
         self.attack   = 0    # attack index
-        self.sach     = mon_type.sach
+        # sach randomized at spawn time per genmon():
+        #   arnrnd((level>>1)+1, sach+(level<<1))
+        sach_lo = max(1, (self.level >> 1) + 1)
+        sach_hi = max(sach_lo, mon_type.sach + (self.level << 1))
+        self.sach     = random.randint(sach_lo, sach_hi)
+
         self.morale   = mon_type.morale
         self.rndwep   = 0    # random weapon index
+        self.attdly   = 0    # individual attack delay
         self.protect  = 256  # protecting user id (256=none)
 
         # arnmon2 fields
@@ -117,8 +128,12 @@ class MonsterInstance:
         self.subtyp   = mon_type.subtyp
 
         # State
-        self.attdly   = 0
+        self.attdly        = 0
         self.regen_counter = 0
+        self.variant = variant
+        self.attack_cooldown = 3  # seconds before first attack (cbtcnt equivalent)
+        self.is_guardian   = False   # True if this is a lair guardian
+        self.lair_item_id  = 0       # 1-indexed lair item to drop on death (0 = none)
 
     @property
     def alive(self):
@@ -169,6 +184,69 @@ class MonsterManager:
             d['id'] = i
             self.types.append(MonsterType(d))
 
+    def save(self):
+        """Serialize active monster instances."""
+        saves_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'saves')
+        os.makedirs(saves_dir, exist_ok=True)
+        state_path = os.path.join(saves_dir, 'monster_state.json')
+        
+        state = {
+            'next_id': self._next_id,
+            'instances': {}
+        }
+        for uid, inst in self.instances.items():
+            if inst.active and inst.hits > 0:
+                state['instances'][uid] = {
+                    'type_id': inst.type_id,
+                    'dloc': inst.dloc,
+                    'level': inst.level,
+                    'mhits': inst.mhits,
+                    'hits': inst.hits,
+                    'exp': inst.exp,
+                    'gp': inst.gp,
+                    'trs': inst.trs,
+                    'variant': inst.variant,
+                    'is_guardian': inst.is_guardian,
+                    'lair_item_id': inst.lair_item_id,
+                }
+        with open(state_path, 'w') as f:
+            json.dump(state, f, indent=2)
+
+    def load_state(self):
+        """Load and inject active monster instances into the manager."""
+        saves_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'saves')
+        state_path = os.path.join(saves_dir, 'monster_state.json')
+        if not os.path.exists(state_path):
+            return
+            
+        with open(state_path, 'r') as f:
+            state = json.load(f)
+            
+        self._next_id = state.get('next_id', 0)
+        self.instances.clear()
+        self._room_monsters.clear()
+        
+        for uid_str, data in state.get('instances', {}).items():
+            uid = int(uid_str)
+            type_id = data.get('type_id', 0)
+            if 0 <= type_id < len(self.types):
+                mon_type = self.types[type_id]
+                inst = MonsterInstance(uid, mon_type, data.get('dloc', 0), data.get('level', mon_type.level))
+                inst.mhits = data.get('mhits', inst.mhits)
+                inst.hits = data.get('hits', inst.hits)
+                inst.exp = data.get('exp', inst.exp)
+                inst.gp = data.get('gp', inst.gp)
+                inst.trs = data.get('trs', inst.trs)
+                inst.variant = data.get('variant', 0)
+                inst.is_guardian = data.get('is_guardian', False)
+                inst.lair_item_id = data.get('lair_item_id', 0)
+                self.instances[uid] = inst
+                
+                rid = inst.dloc
+                if rid not in self._room_monsters:
+                    self._room_monsters[rid] = []
+                self._room_monsters[rid].append(uid)
+
     def _create_fallback_types(self):
         """Minimal fallback monster set."""
         fallback = [
@@ -190,7 +268,7 @@ class MonsterManager:
             d.setdefault('trs', d.get('gp', 0) * 2)
             self.types.append(MonsterType(d))
 
-    def spawn(self, type_id, room_id, level=None):
+    def spawn(self, type_id, room_id, level=None, variant=0):
         """Spawn a new monster instance in a room."""
         if type_id < 0 or type_id >= len(self.types):
             return None
@@ -203,7 +281,7 @@ class MonsterManager:
         mtype = self.types[type_id]
         mid = self._next_id
         self._next_id += 1
-        inst = MonsterInstance(mid, mtype, room_id, level)
+        inst = MonsterInstance(mid, mtype, room_id, level, variant)
         self.instances[mid] = inst
         self._room_monsters.setdefault(room_id, []).append(mid)
         return inst
@@ -243,29 +321,94 @@ class MonsterManager:
                 return inst
         return None
 
+    def populate_lairs(self, world):
+        """Place fixed lair monsters in their designated rooms.
+
+        Source: SYSCMD.H 'relair' command -- BOTH branches spawn lair[i][1]:
+            while (++j < lair[i][2]):
+                if (j == lair[i][2]-1) and guardian_flag > 0:
+                    genmon(room+DUNOFF, lair[i][1], ..., lair_index)  # tagged guardian
+                else:
+                    genmon(room+DUNOFF, lair[i][1], ..., -1)           # untagged
+        field[3] (guardian_flag) is NOT a secondary monster type -- both branches
+        spawn the SAME monster type (lair[i][1]). The flag only controls whether
+        the last monster is associated with the lair index for tracking/treasure.
+        """
+        num_types = max(1, len(self.types))
+        for lair in world.fixed_lairs:
+            room_id       = lair['room']        # Already absolute WorldID (RID + 100)
+            monster_type  = lair['monster']     # 1-indexed monster ID (MNAM1..MNAM161)
+            count         = lair.get('count', 1)
+            guardian_flag = lair.get('guardian_flag', 0)
+
+            if room_id not in world.rooms:
+                continue
+
+            type_idx = (monster_type - 1) % num_types
+            for j in range(count):
+                inst = self.spawn(type_idx, room_id)
+                # If this is the last monster and guardian_flag > 0:
+                # Tag it as a lair guardian and store the item it drops on death.
+                # guardian_flag = 1-indexed item ID (e.g. 39 = iron key, 40 = copper key)
+                if inst and j == count - 1 and guardian_flag > 0:
+                    inst.is_guardian = True
+                    inst.lair_item_id = guardian_flag   # 1-indexed item ID to drop on death
+
+
+
+    def populate_wanderers(self, world):
+        """Spawn wandering monsters based on terrain zones.
+        
+        Each room has a terrain type (from DD2 ranges).
+        Monsters with a matching terr field (from MSTT) can wander into that zone.
+        Rooms that are fixed lairs are skipped (can't wander into lair rooms).
+        
+        Source: genmon() - wander check skips lair rooms via:
+            while (++i < nmlair): if (lair[i][0]+DUNOFF == lc): return(0);
+        """
+        num_types = max(1, len(self.types))
+        # Build a set of lair rooms to exclude from wandering
+        lair_rooms = {lair['room'] for lair in world.fixed_lairs}
+
+        # Build per-terrain monster lists
+        terrain_monsters = {}
+        for idx, mtype in enumerate(self.types):
+            terr = getattr(mtype, 'terr', -1)
+            if terr >= 0:
+                terrain_monsters.setdefault(terr, []).append(idx)
+
+        for zone in world.terrain_zones:
+            terrain = zone.get('terrain', 99)
+            if terrain == 99:
+                continue  # No wandering in this zone
+
+            valid_types = terrain_monsters.get(terrain, [])
+            if not valid_types:
+                continue
+
+            start_world = zone['start']
+            end_world = zone['end']
+            for room_id in range(start_world, end_world + 1):
+                if room_id in lair_rooms:
+                    continue  # Can't wander into lair rooms
+                if room_id not in world.rooms:
+                    continue
+                # ~10% chance of a wanderer in any given room
+                if random.randint(1, 100) <= 10:
+                    type_idx = random.choice(valid_types)
+                    self.spawn(type_idx, room_id)
+
     def populate_dungeon(self, world, min_room=1):
-        """Populate dungeon rooms with monsters from spawn data."""
-        for spawn in world.monster_spawns:
-            room_id = spawn['room'] + DUNOFF
-            type_id = spawn.get('monster_type', 0)
-            # Map the type_id to our loaded types (may be offset)
-            # type_id in spawns corresponds to index in monsters array
-            # but offset by some base. We'll just use modulo for safety.
-            actual_type = type_id % max(1, len(self.types)) if self.types else 0
-            count = spawn.get('count', 1)
-            for _ in range(count):
-                self.spawn(actual_type, room_id)
+        """Legacy method — calls populate_lairs and populate_wanderers."""
+        self.populate_lairs(world)
+        self.populate_wanderers(world)
 
     def populate_initial(self, world):
         """Initial monster placement for game start."""
-        # Populate dungeon from spawn data
-        self.populate_dungeon(world)
-        # Also add some monsters to arena rooms if present
-        for room_id, stype in world.shops.items():
-            if stype == SHOP_ARENA:
-                for _ in range(random.randint(2, 4)):
-                    type_id = random.randint(0, min(4, len(self.types) - 1))
-                    self.spawn(type_id, room_id)
+        # Place fixed lair monsters in their designated rooms
+        self.populate_lairs(world)
+        # Place wandering monsters by terrain zone
+        self.populate_wanderers(world)
 
     def tick_regen(self):
         """Regenerate monster HP (called periodically)."""

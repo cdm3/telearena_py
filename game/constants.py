@@ -78,8 +78,6 @@ DEFATA  = 3          # level/this+2 = attacks/turn
 
 # ---------------------------------------------------------------------------
 # Directions  (original game clockwise order: N=0,NE=1,E=2,SE=3,S=4,SW=5,W=6,NW=7,U=8,D=9)
-# Confirmed from source: ent[]={4,5,6,7,0,1,2,3,9,8} is the opposite-direction table,
-# which is only consistent with this clockwise ordering.
 # ---------------------------------------------------------------------------
 DIR_N  = 0
 DIR_NE = 1
@@ -214,22 +212,22 @@ CLASS_DATA = [
     # class_mod = human_max - 15  (Human race mod = 0)
     # class_hits: max_vit = 20 + max_stam//5 + hits  =>  hits = max_vit - 20 - max_stam//5
     # name, abbrev, plural, intl, know, phys, stam, agil, chrs, hits, spts, gold
-    {'name': 'Warrior',   'cl': 'Wa', 'pl': 'Warriors',   'intl': 3, 'know': 3, 'phys': 7, 'stam': 7, 'agil': 6, 'chrs': 1, 'hits': 10, 'spts': 0, 'gold': 50},
+    {'name': 'Warrior',   'cl': 'Wa', 'pl': 'Warriors',   'intl': 3, 'know': 3, 'phys': 7, 'stam': 7, 'agil': 6, 'chrs': 1, 'hits': 10, 'spts': -1, 'gold': 50},
     {'name': 'Sorceror',  'cl': 'So', 'pl': 'Sorcerors',  'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts': 8, 'gold': 20},
     {'name': 'Acolyte',   'cl': 'Ac', 'pl': 'Acolytes',   'intl': 6, 'know': 6, 'phys': 3, 'stam': 6, 'agil': 3, 'chrs': 3, 'hits':  5, 'spts': 6, 'gold': 30},
-    {'name': 'Rogue',     'cl': 'Ro', 'pl': 'Rogues',     'intl': 3, 'know': 5, 'phys': 6, 'stam': 5, 'agil': 7, 'chrs': 1, 'hits':  5, 'spts': 0, 'gold': 40},
-    {'name': 'Hunter',    'cl': 'Hu', 'pl': 'Hunters',    'intl': 3, 'know': 3, 'phys': 6, 'stam': 7, 'agil': 6, 'chrs': 2, 'hits': 10, 'spts': 0, 'gold': 40},
+    {'name': 'Rogue',     'cl': 'Ro', 'pl': 'Rogues',     'intl': 3, 'know': 5, 'phys': 6, 'stam': 5, 'agil': 7, 'chrs': 1, 'hits':  5, 'spts': -1, 'gold': 40},
+    {'name': 'Hunter',    'cl': 'Hu', 'pl': 'Hunters',    'intl': 3, 'know': 3, 'phys': 6, 'stam': 7, 'agil': 6, 'chrs': 2, 'hits': 10, 'spts': -1, 'gold': 40},
     {'name': 'Druid',     'cl': 'Dr', 'pl': 'Druids',     'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts': 4, 'gold': 30},
-    {'name': 'Archer',    'cl': 'Ar', 'pl': 'Archers',    'intl': 3, 'know': 5, 'phys': 5, 'stam': 5, 'agil': 6, 'chrs': 3, 'hits': 10, 'spts': 0, 'gold': 40},
+    {'name': 'Archer',    'cl': 'Ar', 'pl': 'Archers',    'intl': 3, 'know': 5, 'phys': 5, 'stam': 5, 'agil': 6, 'chrs': 3, 'hits': 10, 'spts': -1, 'gold': 40},
     {'name': 'Necrolyte', 'cl': 'Ne', 'pl': 'Necrolytes', 'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts': 8, 'gold': 20},
     # Promoted classes (MAXCLASS+n) — same stat mods as base, used for display/level-up
-    {'name': 'Warlord',       'cl': 'WL', 'pl': 'Warlords',       'intl': 3, 'know': 3, 'phys': 7, 'stam': 7, 'agil': 6, 'chrs': 1, 'hits': 10, 'spts':  0, 'gold': 0},
+    {'name': 'Warlord',       'cl': 'WL', 'pl': 'Warlords',       'intl': 3, 'know': 3, 'phys': 7, 'stam': 7, 'agil': 6, 'chrs': 1, 'hits': 10, 'spts': -1, 'gold': 0},
     {'name': 'Archmage',      'cl': 'AM', 'pl': 'Archmages',       'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts': 10, 'gold': 0},
     {'name': 'High Priest',   'cl': 'HP', 'pl': 'High Priests',    'intl': 6, 'know': 6, 'phys': 3, 'stam': 6, 'agil': 3, 'chrs': 3, 'hits':  5, 'spts':  8, 'gold': 0},
-    {'name': 'Thief',         'cl': 'Th', 'pl': 'Thieves',         'intl': 3, 'know': 5, 'phys': 6, 'stam': 5, 'agil': 7, 'chrs': 1, 'hits':  5, 'spts':  0, 'gold': 0},
-    {'name': 'Ranger',        'cl': 'Ra', 'pl': 'Rangers',         'intl': 3, 'know': 3, 'phys': 6, 'stam': 7, 'agil': 6, 'chrs': 2, 'hits': 10, 'spts':  0, 'gold': 0},
+    {'name': 'Thief',         'cl': 'Th', 'pl': 'Thieves',         'intl': 3, 'know': 5, 'phys': 6, 'stam': 5, 'agil': 7, 'chrs': 1, 'hits':  5, 'spts': -1, 'gold': 0},
+    {'name': 'Ranger',        'cl': 'Ra', 'pl': 'Rangers',         'intl': 3, 'know': 3, 'phys': 6, 'stam': 7, 'agil': 6, 'chrs': 2, 'hits': 10, 'spts': -1, 'gold': 0},
     {'name': 'Archdruid',     'cl': 'AD', 'pl': 'Archdruids',      'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts':  6, 'gold': 0},
-    {'name': 'Master Archer', 'cl': 'MA', 'pl': 'Master Archers',  'intl': 3, 'know': 5, 'phys': 5, 'stam': 5, 'agil': 6, 'chrs': 3, 'hits': 10, 'spts':  0, 'gold': 0},
+    {'name': 'Master Archer', 'cl': 'MA', 'pl': 'Master Archers',  'intl': 3, 'know': 5, 'phys': 5, 'stam': 5, 'agil': 6, 'chrs': 3, 'hits': 10, 'spts': -1, 'gold': 0},
     {'name': 'Lich',          'cl': 'Li', 'pl': 'Liches',          'intl': 6, 'know': 7, 'phys': 3, 'stam': 3, 'agil': 3, 'chrs': 5, 'hits':  0, 'spts': 10, 'gold': 0},
 ]
 
@@ -238,7 +236,7 @@ STATUS_NAMES = ['Normal', 'Poisoned', 'Paralyzed', 'Drained']
 
 # Badge/rune colors
 BADGE_COLORS = [
-    'white', 'yellow', 'orange', 'red', 'violet', 'blue',
+    'none', 'white', 'yellow', 'orange', 'red', 'violet', 'blue',
     'green', 'cyan', 'black', 'silver', 'gold', 'platinum',
 ]
 

@@ -43,12 +43,14 @@ def calc_hit_chance(attacker_char, defender_ac, weapon_type=1, dark=False,
     return max(5, as_)
 
 
-def calc_dodge_chance(defender_char, attacker_level):
+def calc_dodge_chance(defender_char, multiplier=1):
     """
     Calculate defender's chance to dodge (dch).
     """
     dch = (defender_char.know + (defender_char.agil * 2) + defender_char.level) // 10
-    return max(0, min(30, dch))
+    if defender_char.clas == CLS_ROGUE:
+        dch *= multiplier
+    return max(0, min(50, dch))
 
 
 def calc_damage(attacker_char, item, weapon_skill_bonus=0):
@@ -91,7 +93,7 @@ def attack_character(attacker, defender, items_db, world, game, weapon_idx=-1):
                                   dark, bool(defender.invcnt), bool(wep.get('range', 0)),
                                   attacker.clas)
 
-    # Combat delay
+    # Combat delay (15 seconds at 1Hz)
     attacker.attcnt += 1
     if attacker.attcnt >= attacker.atts:
         attacker.attdly = 15
@@ -110,21 +112,23 @@ def attack_character(attacker, defender, items_db, world, game, weapon_idx=-1):
             messages['target'].append(f'***\nYou skillfully dodge {attacker.userid}\'s attack!\n')
             messages['room'].append(f'***\n{defender.userid} barely dodged {attacker.userid}\'s {wep_name}!\n')
         else:
-            # Check armor
-            def_ac = defender.ac + (defender.armdmg or 0)
-            if arnrnd(1, 20) <= def_ac // 2:
-                # Armor deflected
-                messages['you'].append(f'***\nYour attack glanced off {defender.userid}\'s armor!\n')
-                messages['target'].append(f'***\n{attacker.userid}\'s {wep_name} glanced off your armor!\n')
-            else:
-                # Hit!
-                dmg = calc_damage(attacker, wep)
-                dmg = max(1, dmg - (def_ac // 4))
-
-                # Skill hit (know > 10 chance)
-                skillhit = attacker.know > 10 and arnrnd(1, 100) <= (attacker.know - 10) * 3
+            # Hit!
+            dmg = calc_damage(attacker, wep)
+            
+            # Armor reduction (C-style)
+            def_ac = defender.ac
+            if def_ac > 0:
+                armor_red = arnrnd(def_ac // 2, def_ac)
+                dmg -= armor_red
+                
+            if dmg > 0:
+                # Skill hit (Rogue crit chance)
+                skillhit = False
+                if attacker.clas == CLS_ROGUE and arnrnd(1, 100) <= attacker.level:
+                    dmg *= 2
+                    skillhit = True
+                
                 if skillhit:
-                    dmg = int(dmg * 1.5)
                     hit_msg_you = f'***\nYour skillful attack hit {defender.userid} for {dmg} damage!\n'
                 else:
                     hit_msg_you = f'***\nYour attack hit {defender.userid} for {dmg} damage!\n'
@@ -134,11 +138,16 @@ def attack_character(attacker, defender, items_db, world, game, weapon_idx=-1):
                 messages['room'].append(f'***\n{attacker.userid} just attacked {defender.userid} with {wep_name}!\n')
 
                 # Apply damage
-                dmg_char(defender, dmg, game)
+                death_msg = dmg_char(defender, dmg, game, death_type=4)
 
-                if not defender.alive:
+                if death_msg:
                     messages['you'].append(f'***\nCongratulations, you\'ve defeated {defender.userid}!\n')
-                    messages['target'].append(f'***\n{defender.userid} just fell to the ground lifeless!\n')
+                    messages['target'].append(death_msg)
+                    messages['room'].append(f'***\n{defender.userid} just fell to the ground lifeless!\n')
+            else:
+                # Glanced off
+                messages['you'].append(f'***\nYour attack glanced off {defender.userid}\'s armor!\n')
+                messages['target'].append(f'***\n{attacker.userid}\'s {wep_name} glanced off your armor!\n')
     else:
         # Miss
         messages['you'].append('***\nYour attack missed!\n')
@@ -176,45 +185,53 @@ def attack_monster(attacker, monster, items_db, world, game, weapon_idx=-1):
                                   dark, False, bool(wep.get('range', 0)),
                                   attacker.clas)
 
-    # Combat delay
-    attacker.attcnt += 1
-    if attacker.attcnt >= attacker.atts:
-        attacker.attdly = 15
-        attacker.attcnt = 0
-        attacker.cbtcnt = 0
+    # Fire all attacks for the round at once
+    num_attacks = max(1, attacker.atts)
+    for _ in range(num_attacks):
+        if not monster.alive:
+            break
 
-    roll = arnrnd(1, 100)
-    if roll <= hit_chance:
-        # Check monster dodge (based on agility/cskl)
-        mon_dodge = mtype.cskl // 10
-        if arnrnd(1, 100) <= mon_dodge:
-            msgs['you'].append(f'***\nThe {mon_name} dodged your attack!\n')
-            msgs['room'].append(f'***\n{attacker.userid}\'s attack was dodged by the {mon_name}!\n')
-        else:
-            # Check monster armor
-            if arnrnd(1, 20) <= mtype.ac // 2:
-                msgs['you'].append(f'***\nYour attack glanced off the {mon_name}\'s armor!\n')
+        roll = arnrnd(1, 100)
+        if roll <= hit_chance:
+            # Check monster dodge (based on agility/cskl)
+            mon_dodge = (mtype.cskl + (monster.level * 2)) // 10
+            if arnrnd(1, 100) <= mon_dodge:
+                msgs['you'].append(msg.get('ATTDOG', mon_name))
             else:
                 dmg = calc_damage(attacker, wep)
-                dmg = max(1, dmg - (mtype.ac // 4))
-                skillhit = attacker.know > 10 and arnrnd(1, 100) <= (attacker.know - 10) * 3
-                if skillhit:
-                    dmg = int(dmg * 1.5)
-                    msgs['you'].append(f'***\nYour skillful attack hit the {mon_name} for {dmg} damage!\n')
+                
+                # Monster armor reduction
+                a = mtype.ac
+                dmg -= a
+                
+                if dmg > 0:
+                    skillhit = False
+                    if attacker.clas == CLS_ROGUE and arnrnd(1, 100) <= attacker.level:
+                        dmg *= 2
+                        skillhit = True
+                    
+                    if skillhit:
+                        msgs['you'].append(msg.get('ATTHTM2', mon_name, dmg))
+                    else:
+                        msgs['you'].append(msg.get('ATTHTM', mon_name, dmg))
+
+                    monster.hits -= dmg
+                    if not monster.alive:
+                        handle_monster_death(attacker, monster, game, msgs)
                 else:
-                    msgs['you'].append(f'***\nYour attack hit the {mon_name} for {dmg} damage!\n')
-                msgs['room'].append(f'***\n{attacker.userid} just attacked the {mon_name} with {wep_name}!\n')
+                    # Glanced off
+                    msgs['you'].append(msg.get('ATTGNM', mon_name))
+        else:
+            msgs['you'].append(msg.get('ATTFUM'))
 
-                monster.hits -= dmg
-                if not monster.alive:
-                    handle_monster_death(attacker, monster, game, msgs)
-    else:
-        msgs['you'].append('***\nYour attack missed!\n')
-        msgs['room'].append(f'***\n{attacker.userid}\'s attack missed the {mon_name}!\n')
+    # Set attack delay for the full round (15 seconds at 1Hz)
+    attacker.attdly = 15
+    attacker.attcnt = 0
+    attacker.cbtcnt = 0
 
-    # Monster attacks back if still alive
+    # Aggro monster if still alive
     if monster.alive and monster.prey == 256:
-        monster.prey = 0  # mark as aggro
+        monster.prey = 0
 
     return msgs
 
@@ -222,7 +239,10 @@ def attack_monster(attacker, monster, items_db, world, game, weapon_idx=-1):
 def monster_attacks(monster, char, game):
     """
     A monster attacks a character.
-    Returns list of message strings for the character.
+    Matches original attmon() exactly:
+      1. Number of attacks: atts<1 -> arnrnd(1,2), else arnrnd(1,atts)
+      2. Per-attack: check sach first -- if sach roll passes AND special exists, do special instead
+      3. Normal attack: miss check (cskl <= roll), dodge check (dch >= roll), then dmg vs armor
     """
     msgs = []
     if not monster.alive or not char.alive:
@@ -231,40 +251,78 @@ def monster_attacks(monster, char, game):
     mtype = monster.type
     mon_name = mtype.name
 
-    # Multiple attacks
-    for _ in range(mtype.atts):
-        hit_chance = mtype.cskl
-        if char.invcnt:
-            hit_chance = max(5, hit_chance - 25)
-        roll = arnrnd(1, 100)
-        if roll <= hit_chance:
-            # Check armor deflect
-            if char.ac > 0 and arnrnd(1, 20) <= char.ac // 3:
-                msgs.append(f'***\nThe {mon_name}\'s attack glanced off your armor!\n')
-                continue
-            # Damage
-            dmg = arnrnd(mtype.mindam, max(mtype.mindam, mtype.maxdam))
-            dmg = max(1, dmg - (char.ac // 4))
+    # Number of attacks this round: atts=0 means 1-2 random, else 1..atts
+    if mtype.atts < 1:
+        num_hits = arnrnd(1, 2)
+    else:
+        num_hits = arnrnd(1, mtype.atts)
 
-            if mtype.weapon:
-                weapon_str = mtype.weapon
-            else:
-                weapon_str = 'claws'
+    # Player dodge chance: (know + agil*2 + level) / 10, doubled for rogues, 0 if paralyzed
+    from .constants import CLS_ROGUE
+    dch = (char.know + (char.agil << 1) + char.level) // 10
+    if char.clas == CLS_ROGUE:
+        dch *= 2
+    if char.parcnt:
+        dch = 0
 
-            msgs.append(f'***\nThe {mon_name} attacked you with {weapon_str} for {dmg} damage!\n')
-            dmg_char(char, dmg, game)
+    for _ in range(num_hits):
+        if not char.alive:
+            break
 
-            if not char.alive:
-                msgs.append(f'***\nAs the final blow strikes your body you fall unconscious.\nYou awaken after an unknown amount of time...\n')
-                break
+        # Damage roll (natural weapon or random weapon)
+        dmg = arnrnd(mtype.mindam, max(mtype.mindam, mtype.maxdam))
 
-            # Special attack
-            if mtype.sach > 0 and arnrnd(1, 100) <= mtype.sach:
-                handle_monster_special(monster, char, msgs, game)
+        # Armor reduction
+        if char.ac > 0:
+            ab = arnrnd(char.ac >> 1, char.ac)
         else:
-            msgs.append(f'***\nThe {mon_name} missed!\n')
+            ab = 0
+        dmg -= ab
+
+        # ----------------------------------------------------------------
+        # sach / special attack check (original lines 1819-1896)
+        # Check: if (no spcabn AND no maxspc) OR arnrnd(1,100) > monster.sach:
+        #   -> do normal attack (miss/dodge/hit)
+        # else if spcabn and other conditions:
+        #   -> do special attack instead
+        # ----------------------------------------------------------------
+        do_normal = (not mtype.spcabn and not mtype.maxspc) or (arnrnd(1, 100) > monster.sach)
+
+        if do_normal:
+            # Miss: if cskl <= roll, monster misses (cskl=hit%, higher is better for monster)
+            if mtype.cskl <= arnrnd(1, 100):
+                msgs.append(msg.get('MFMYOU', mon_name))
+                continue
+
+            # Dodge: player dodges if dch >= roll
+            if dch >= arnrnd(1, 100):
+                msgs.append(msg.get('MDGYOU', mon_name))
+                continue
+
+            # Hit landed
+            if dmg > 0:
+                weapon_str = mtype.weapon if mtype.weapon else 'claws'
+                msgs.append(msg.get('ABLDYU', mon_name, weapon_str, dmg))
+                char.hits -= dmg
+                if not char.alive:
+                    death_msg = char_death(char, game, death_type=4)
+                    if death_msg:
+                        msgs.append(death_msg)
+                    break
+                # Special effect on hit (poison, drain, paralysis, etc.)
+                handle_monster_special(monster, char, msgs, game)
+            else:
+                # Armor absorbed all damage
+                msgs.append(msg.get('MGNYOU', mon_name, mtype.weapon or 'attack'))
+        else:
+            # Special attack replaces normal attack this round
+            if mtype.spcabn:
+                handle_monster_special(monster, char, msgs, game)
+                if not char.alive:
+                    break
 
     return msgs
+
 
 
 def handle_monster_special(monster, char, msgs, game):
@@ -275,8 +333,9 @@ def handle_monster_special(monster, char, msgs, game):
     if mtype.effect == 1:  # poison
         if char.poison == 0:
             char.poison = arnrnd(mtype.mineff, max(mtype.mineff, mtype.maxeff))
-            msgs.append(f'***\nThe {mon_name}\'s {mtype.spcatt or "attack"} has poisoned you!\n')
+            msgs.append(f'\u001b[1;31m***\nThe {mon_name}\'s {mtype.spcatt or "attack"} has poisoned you!\n\u001b[1;37m')
     elif mtype.effect == 2:  # paralysis
+        # 10x scale for 10Hz tick rate
         char.parcnt = arnrnd(mtype.mineff, max(mtype.mineff, mtype.maxeff))
         msgs.append(f'***\nYou are paralyzed!\n')
     elif mtype.effect == 3:  # stat drain
@@ -285,6 +344,7 @@ def handle_monster_special(monster, char, msgs, game):
         char.stam2 = max(1, char.stam2 - drain)
         msgs.append(f'***\nYou\'ve been drained!\n')
     elif mtype.effect == 4:  # mana drain
+        # Effect is immediate mana reduction, no duration to scale
         drain = arnrnd(mtype.mineff, max(mtype.mineff, mtype.maxeff))
         char.splpts = max(0, char.splpts - drain)
         msgs.append(f'***\nYou feel your magical energy draining away!\n')
@@ -295,7 +355,7 @@ def handle_monster_death(attacker, monster, game, msgs):
     mtype = monster.type
     mon_name = mtype.name
 
-    msgs['you'].append(f'***\nThe {mon_name} falls to the ground lifeless!\n')
+    msgs['you'].append(msg.get('MONDEF', mon_name))
 
     # XP award
     xp = monster.exp
@@ -308,41 +368,123 @@ def handle_monster_death(attacker, monster, game, msgs):
         attacker.gold = min(60000, attacker.gold + gold_found)
         msgs['you'].append(f'***\nYou found {gold_found} gold crowns while searching the {mon_name}\'s corpse.\n')
 
+    # Special Quest Loot (variant field)
+    if monster.variant > 0:
+        item_idx = monster.variant
+        items_db = game.items_db
+        if 0 <= item_idx < len(items_db):
+            item = items_db[item_idx]
+            item_name = item.get('name', 'item')
+            
+            # Find empty slot
+            slot = -1
+            for i in range(NUMHLD):
+                if attacker.invent[i] == -1:
+                    slot = i
+                    break
+            
+            if slot != -1:
+                attacker.invent[slot] = item_idx
+                attacker.charge[slot] = item.get('charges', 0)
+                # Recalculate encumbrance
+                total_wt = 0
+                for i in range(NUMHLD):
+                    if attacker.invent[i] != -1:
+                        total_wt += items_db[attacker.invent[i]]['wt']
+                attacker.wt = total_wt
+                msgs['you'].append(f'***\nYou found {item.get("desc", item_name)} while searching the {mon_name}\'s corpse!\n')
+            else:
+                # Inventory full, drop in room
+                room = game.world.get_room(attacker.loc)
+                if room:
+                    drop_slot = room.find_empty_item_slot()
+                    if drop_slot != -1:
+                        room.set_item(drop_slot, item_idx, item.get('charges', 0))
+                        msgs['you'].append(f"***\nYou found {item.get('desc', item_name)} on the {mon_name}'s corpse, but you can't carry any more! It falls to the ground.\n")
+                    else:
+                        msgs['you'].append(f"***\nYou found {item.get('desc', item_name)} on the {mon_name}'s corpse, but the ground is too cluttered to leave it here!\n")
+
+    # Lair Guardian Drop (guardian_flag item — copper key, iron key, etc.)
+    # When the last monster in a lair (is_guardian=True) is killed, drop its lair item.
+    # lair_item_id is 1-indexed from guardian_flag field in LAIR data.
+    if getattr(monster, 'is_guardian', False) and getattr(monster, 'lair_item_id', 0) > 0:
+        item_idx = monster.lair_item_id   # guardian_flag is 0-indexed item array index
+        items_db = game.items_db
+        if 0 <= item_idx < len(items_db):
+            item = items_db[item_idx]
+            item_name = item.get('name', 'item')
+
+            # Try player inventory first
+            slot = -1
+            for i in range(NUMHLD):
+                if attacker.invent[i] == -1:
+                    slot = i
+                    break
+
+            if slot != -1:
+                attacker.invent[slot] = item_idx
+                attacker.charge[slot] = item.get('charges', 0)
+                total_wt = sum(items_db[attacker.invent[i]].get('wt', 0)
+                               for i in range(NUMHLD) if attacker.invent[i] != -1)
+                attacker.wt = total_wt
+                msgs['you'].append(f'***\nYou found {item.get("desc", item_name)} while searching the {mon_name}\'s corpse!\n')
+            else:
+                # Inventory full — drop in room
+                room = game.world.get_room(attacker.loc)
+                if room:
+                    drop_slot = room.find_empty_item_slot()
+                    if drop_slot != -1:
+                        room.set_item(drop_slot, item_idx, item.get('charges', 0))
+                        msgs['you'].append(f"***\nYou found {item.get('desc', item_name)} but can't carry it — it falls to the ground.\n")
+
     # Remove monster
     game.monster_mgr.despawn(monster.id)
 
     # Check level up
-    check_level_up(attacker, game, msgs['you'])
+    msg_up = check_level_up(attacker, game, [])
+    if msg_up:
+        msgs['you'].append(msg_up)
 
 
-def dmg_char(char, dmg, game):
-    """Apply damage to a character (dmgchr equivalent)."""
+def dmg_char(char, dmg, game, death_type=1):
+    """Apply damage to a character (dmgchr equivalent). Returns death message if killed."""
     char.hits -= dmg
     if char.hits <= 0:
         char.hits = 0
-        char_death(char, game)
+        return char_death(char, game, death_type)
+    return None
 
 
-def char_death(char, game):
-    """Handle character death (death() equivalent)."""
+def char_death(char, game, death_type=1):
+    """Handle character death (death() equivalent). Returns localized death message."""
     # Respawn at room 4 (temple/resurrection area)
     char.hits = 1
     char.splpts = 0
     char.poison = 0
-    char.attdly = 60
-    char.spldly = 60
+    char.attdly = 6  # 6s recovery at 1Hz
+    char.spldly = 6  # 6s recovery at 1Hz
     char.parcnt = 0
     char.invcnt = 0
     char.procnt = 0
     char.status = STS_NORMAL
     char.loc = 4
     char.dun = 0
+    
     # Lose some gold
     lost_gold = char.gold // 4
     char.gold = char.gold - lost_gold
+    
     # Lose some XP
     if char.exp > 0:
         char.exp -= char.exp // 10
+
+    # Return correct localized message (parity with death(u, ou, msg) in C)
+    # death_type mapping: 0:Poison, 1:Slain/Damage, 2:Starvation, 3:Dehydration, 4:Combat, 5:Heat Stroke
+    msg_key = "YOUDED"
+    if death_type > 0:
+        msg_key = f"YOUDED{death_type}"
+    
+    return msg.get(msg_key) if msg_key in msg._messages else "***\nYou fall unconscious...\n"
 
 
 def award_exp(char, xp, game):
@@ -351,38 +493,10 @@ def award_exp(char, xp, game):
 
 
 def check_level_up(char, game, msgs):
-    """Check if character has enough XP to level up."""
-    if char.level >= MAXLEV and not char.promot:
-        return
-    next_level = char.level + 1
-    xp_needed = xp_for_level(next_level)
-    if char.exp >= xp_needed and char.level < MAXLEV:
-        level_up(char, game, msgs)
-
-
-def level_up(char, game, msgs):
-    """Level up a character."""
-    char.level += 1
-
-    # HP gain
-    hp_gain = char.stam * arnrnd(DEFHPL, DEFHPH) // 10
-    hp_gain = max(1, hp_gain)
-    char.mhits += hp_gain
-    char.mhits2 += hp_gain
-    char.hits = min(char.hits + hp_gain, char.mhits)
-
-    # SP gain
-    sp_gain = DEFSPA
-    char.mspts += sp_gain
-    char.mspts2 += sp_gain
-
-    # Attack gain
-    char.atts = (char.level // DEFATA) + 2
-
-    msgs.append(f'***\nAfter a rigorous mental and physical training session, you managed to blend\n'
-                f'your personal experience and the new knowledge imparted to you by the guild\n'
-                f'masters into a greater level of personal power!\n')
-
+    """Check if character is ready for training (original 5.6 manual logic)."""
+    if char.can_advance():
+        return "\n*** YOU ARE READY FOR FURTHER TRAINING! VISIT YOUR GUILDMASTER! ***\n"
+    return ""
 
 def cast_spell(caster, spell_idx, target_char, target_monster, items_db,
                world, game):
@@ -416,7 +530,7 @@ def cast_spell(caster, spell_idx, target_char, target_monster, items_db,
         return msgs
 
     caster.splpts -= cost
-    caster.spldly = 10  # spell delay
+    caster.spldly = 10  # spell delay (10 seconds at 1Hz)
 
     stype = spell.get('type', 1)
     level = caster.level
@@ -438,9 +552,12 @@ def cast_spell(caster, spell_idx, target_char, target_monster, items_db,
             if not target_monster.alive:
                 handle_monster_death(caster, target_monster, game, msgs)
         elif target_char and target_char is not caster:
-            dmg_char(target_char, effect, game)
+            death_msg = dmg_char(target_char, effect, game, death_type=4)
             msgs['you'].append(f'***\nYou cast {spell_name} at {target_char.userid} for {effect} damage!\n')
-            msgs['target'].append(f'***\n{caster.userid} cast {spell_name} at you for {effect} damage!\n')
+            if death_msg:
+                msgs['target'].append(death_msg)
+            else:
+                msgs['target'].append(f'***\n{caster.userid} cast {spell_name} at you for {effect} damage!\n')
 
     elif stype == 21:  # healing
         heal = effect
@@ -448,6 +565,7 @@ def cast_spell(caster, spell_idx, target_char, target_monster, items_db,
         msgs['you'].append(f'***\nYou cast {spell_name} and recover {heal} hit points!\n')
 
     elif stype == 22:  # regeneration
+        # 10x scale for 10Hz tick rate
         caster.procnt = effect
         msgs['you'].append(f'***\nYou cast {spell_name} and feel your wounds knitting!\n')
 
@@ -460,12 +578,14 @@ def cast_spell(caster, spell_idx, target_char, target_monster, items_db,
             msgs['you'].append(f'***\nYou cast {spell_name} but you aren\'t poisoned!\n')
 
     elif stype == 12:  # invisibility
+        # 10x scale for 10Hz tick rate
         caster.invcnt = max(effect, 30)
         msgs['you'].append(f'***\nYou cast {spell_name} and seem to fade from view!\n')
 
     elif stype == 33:  # enchantment (armor boost)
         boost = spell.get('armor', 0)
         if boost:
+            # 10x scale for 10Hz tick rate
             caster.procnt = effect
             caster.ac = caster.ac + boost
             msgs['you'].append(f'***\nYou cast {spell_name} and feel a magical shield form around you!\n')

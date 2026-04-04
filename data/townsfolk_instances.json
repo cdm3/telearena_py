@@ -1,0 +1,200 @@
+[
+  {
+    "id": 1,
+    "type_id": 0,
+    "room": 3,
+    "name": "shop keeper"
+  },
+  {
+    "id": 2,
+    "type_id": 1,
+    "room": 6,
+    "name": "shop keeper"
+  },
+  {
+    "id": 3,
+    "type_id": 2,
+    "room": 7,
+    "name": "shop keeper"
+  },
+  {
+    "id": 4,
+    "type_id": 6,
+    "room": 9,
+    "name": "crimson mage"
+  },
+  {
+    "id": 5,
+    "type_id": 7,
+    "room": 8,
+    "name": "master sorceror"
+  },
+  {
+    "id": 6,
+    "type_id": 8,
+    "room": 4,
+    "name": "blue robed priest"
+  },
+  {
+    "id": 7,
+    "type_id": 9,
+    "room": 5,
+    "name": "barkeep"
+  },
+  {
+    "id": 8,
+    "type_id": 10,
+    "room": 5,
+    "name": "barmaid"
+  },
+  {
+    "id": 9,
+    "type_id": 12,
+    "room": 11,
+    "name": "ship's captain"
+  },
+  {
+    "id": 10,
+    "type_id": 12,
+    "room": 11,
+    "name": "ship's captain"
+  },
+  {
+    "id": 11,
+    "type_id": 12,
+    "room": 12,
+    "name": "ship's captain"
+  },
+  {
+    "id": 12,
+    "type_id": 12,
+    "room": 12,
+    "name": "ship's captain"
+  },
+  {
+    "id": 13,
+    "type_id": 12,
+    "room": 12,
+    "name": "ship's captain"
+  },
+  {
+    "id": 14,
+    "type_id": 3,
+    "room": 22,
+    "name": "shop keeper"
+  },
+  {
+    "id": 15,
+    "type_id": 4,
+    "room": 30,
+    "name": "shop keeper"
+  },
+  {
+    "id": 16,
+    "type_id": 5,
+    "room": 16,
+    "name": "shop keeper"
+  },
+  {
+    "id": 17,
+    "type_id": 6,
+    "room": 24,
+    "name": "crimson mage"
+  },
+  {
+    "id": 18,
+    "type_id": 8,
+    "room": 32,
+    "name": "blue robed priest"
+  },
+  {
+    "id": 19,
+    "type_id": 9,
+    "room": 20,
+    "name": "barkeep"
+  },
+  {
+    "id": 20,
+    "type_id": 11,
+    "room": 20,
+    "name": "barmaid"
+  },
+  {
+    "id": 21,
+    "type_id": 7,
+    "room": 40,
+    "name": "master sorceror"
+  },
+  {
+    "id": 22,
+    "type_id": 13,
+    "room": 41,
+    "name": "grey robed priest"
+  },
+  {
+    "id": 23,
+    "type_id": 9,
+    "room": 42,
+    "name": "barkeep"
+  },
+  {
+    "id": 24,
+    "type_id": 6,
+    "room": 43,
+    "name": "crimson mage"
+  },
+  {
+    "id": 25,
+    "type_id": 0,
+    "room": 44,
+    "name": "shop keeper"
+  },
+  {
+    "id": 26,
+    "type_id": 2,
+    "room": 45,
+    "name": "shop keeper"
+  },
+  {
+    "id": 27,
+    "type_id": 4,
+    "room": 46,
+    "name": "shop keeper"
+  },
+  {
+    "id": 28,
+    "type_id": 3,
+    "room": 62,
+    "name": "shop keeper"
+  },
+  {
+    "id": 29,
+    "type_id": 3,
+    "room": 63,
+    "name": "shop keeper"
+  },
+  {
+    "id": 30,
+    "type_id": 3,
+    "room": 67,
+    "name": "shop keeper"
+  },
+  {
+    "id": 31,
+    "type_id": 15,
+    "room": 70,
+    "name": "barkeep"
+  },
+  {
+    "id": 32,
+    "type_id": 14,
+    "room": 70,
+    "name": "barmaid"
+  },
+  {
+    "id": 33,
+    "type_id": 6,
+    "room": 74,
+    "name": "crimson mage"
+  }
+]

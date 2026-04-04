@@ -17,20 +17,28 @@ class Room:
 
     def __init__(self, room_id, short_desc='', long_desc='', exits=None,
                  shop_type=SHOP_NONE, is_dark=False, is_dungeon=False,
-                 desc_id=0):
+                 desc_id=0, shop_tier=1, trap_type=0, trap_arg=0, trap_msg=0,
+                 resident_monster_id=0, resident_item_id=0):
         self.id         = room_id
         self.short_desc = short_desc
         self.long_desc  = long_desc
         # exits[direction] = destination room id (0 = no exit)
         self.exits      = list(exits) if exits else [0] * 10
         self.shop_type  = shop_type
+        self.shop_tier  = shop_tier
         self.is_dark    = is_dark
         self.is_dungeon = is_dungeon
         self.desc_id    = desc_id   # index into dungeon_room_descriptions
+        self.resident_monster_id = resident_monster_id
+        self.resident_item_id = resident_item_id
 
         # Dynamic content (reset between sessions)
         self.items      = [255] * (NMRMIT * 2)  # item slots (255=empty) + charges
         self.monsters   = [-1]  * NMRMMN         # monster instance ids
+        self.gates      = []                   # list of {item_idx, direction, consume, msg_idx}
+        self.trap_type  = trap_type
+        self.trap_arg   = trap_arg
+        self.trap_msg   = trap_msg
 
     def get_exit(self, direction):
         """Return destination room id for direction, 0 if none."""
@@ -108,6 +116,11 @@ class World:
         # Monster spawns (initial configuration)
         self.monster_spawns = []
         self.item_spawns = []
+        self.fixed_lairs = []       # Fixed per-room lair placements (from LAIR data)
+        self.terrain_zones = []     # DD2 terrain zones for wandering monsters
+        self.dark_zones = []        # DD1 darkness zones
+        self.global_gates = []    # Gates starting from room -99
+
 
     def load(self):
         """Load all world data from JSON files."""
@@ -116,22 +129,66 @@ class World:
         self._load_shops()
         self._load_townsfolk()
 
+    def save(self):
+        """Save dynamic world state (dropped items and townsfolk)."""
+        saves_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'saves')
+        os.makedirs(saves_dir, exist_ok=True)
+        state_path = os.path.join(saves_dir, 'world_state.json')
+        
+        dynamic_rooms = {}
+        for rid, room in self.rooms.items():
+            # Only save if there are items on the floor to save space
+            if any(i != 255 for i in room.items[:NMRMIT]):
+                dynamic_rooms[rid] = {
+                    'items': room.items
+                }
+        
+        state = {
+            'rooms': dynamic_rooms,
+            'townsfolk': self.townsfolk
+        }
+        with open(state_path, 'w') as f:
+            json.dump(state, f, indent=2)
+
+    def load_state(self):
+        """Load dynamic world state to preserve abandoned items and townsfolk."""
+        saves_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'saves')
+        state_path = os.path.join(saves_dir, 'world_state.json')
+        if not os.path.exists(state_path):
+            return
+            
+        with open(state_path, 'r') as f:
+            state = json.load(f)
+            
+        dynamic_rooms = state.get('rooms', {})
+        for rid_str, data in dynamic_rooms.items():
+            rid = int(rid_str)
+            if rid in self.rooms:
+                self.rooms[rid].items = data.get('items', [255]*(NMRMIT*2))
+                
+        if 'townsfolk' in state:
+            self.townsfolk = state['townsfolk']
+
     def _load_town_rooms(self):
         path = os.path.join(_data_dir, 'town_rooms.json')
         if not os.path.exists(path):
-            self._create_fallback_town()
+            print("Warning: town_rooms.json not found!")
             return
         with open(path) as f:
-            town_data = json.load(f)
-        for rd in town_data:
+            town_rooms = json.load(f)
+
+        for rdata in town_rooms:
             room = Room(
-                room_id=rd['id'],
-                short_desc=rd.get('short_desc', ''),
-                long_desc=rd.get('long_desc', ''),
-                exits=rd.get('exits', [0]*10),
+                room_id=rdata['id'],
+                short_desc=rdata.get('short_desc', ''),
+                long_desc=rdata.get('long_desc', ''),
                 is_dungeon=False,
             )
-            self.rooms[rd['id']] = room
+            raw_exits = rdata.get('exits', [0] * 10)
+            for d in range(10):
+                room.exits[d] = raw_exits[d] if d < len(raw_exits) else 0
+
+            self.rooms[rdata['id']] = room
 
     # Town room used when returning from dungeon via -98 exit (the docks area)
     DUNGEON_TOWN_ENTRANCE = 12
@@ -144,61 +201,137 @@ class World:
             dd = json.load(f)
         self.world_name = dd.get('world_name', 'World One')
         self.num_dun_rooms = dd.get('num_dun_rooms', 0)
-        self.monster_spawns = dd.get('monster_spawns', [])
+        self.fixed_lairs = dd.get('fixed_lairs', [])          # Fixed per-room placements
+        self.terrain_zones = dd.get('terrain_zones', [])       # DD2 terrain zones (for wanderers)
+        self.dark_zones = dd.get('dark_zones', [])             # DD1 darkness zones
+        self.monster_spawns = dd.get('monster_spawns', [])     # Legacy (unused)
         self.item_spawns = dd.get('item_spawns', [])
         dungeon_exits = dd.get('dungeon_exits', {})
+        dungeon_attributes = dd.get('dungeon_attributes', {})
+        rdesc_by_room = {int(k): v for k, v in dd.get('dungeon_room_descriptions', {}).items()}
 
-        # Load dungeon room description text
+        # Load dungeon room description text indexed by desc_idx
         desc_path = os.path.join(_data_dir, 'dungeon_rooms.json')
+        descs_by_idx = {}   # {desc_idx: {short_desc, long_desc}}
         if os.path.exists(desc_path):
             with open(desc_path) as f:
                 self.dungeon_descs = json.load(f)
+            # dungeon_rooms.json is a list; rooms store their own desc_idx in dungeon_room_descriptions.
+            # We also build a lookup by the ROOM key for TSGARNDT ROOM{n} direct access.
+            for entry in self.dungeon_descs:
+                # each entry has 'id' (World room ID = RID+100), short_desc, long_desc
+                rid = entry.get('id', 0) - 100  # back to RID
+                stored_idx = rdesc_by_room.get(rid, 0)
+                if stored_idx not in descs_by_idx:
+                    descs_by_idx[stored_idx] = entry
 
-        # Create Room objects for all 3096 dungeon rooms using real exit data
-        # dungeon_exits keys are strings (JSON) -> convert to int
+        # Create Room objects for all dungeon rooms using real exit data
         exits_by_room = {int(k): v for k, v in dungeon_exits.items()}
-        num_descs = max(1, len(self.dungeon_descs))
+        attrs_by_room = {int(k): v for k, v in dungeon_attributes.items()}
+
+        # Build terrain zone lookup: RID -> terrain_type
+        terrain_by_rid = {}
+        for zone in self.terrain_zones:
+            for rid in range(zone['start'] - 100, zone['end'] - 99):  # end inclusive, back to RID
+                terrain_by_rid[rid] = zone['terrain']
+
+        # Build dark zone lookup: RID -> zone_type (1=dark)
+        dark_by_rid = {}
+        for zone in self.dark_zones:
+            for rid in range(zone['start'] - 100, zone['end'] - 99):
+                dark_by_rid[rid] = zone['zone_type']
 
         for dun_rid in range(1, self.num_dun_rooms + 1):
             game_room_id = dun_rid + DUNOFF
             if game_room_id in self.rooms:
                 continue
 
-            # desc_idx cycles through 862 descriptions
-            d_idx = (dun_rid - 1) % num_descs
+            # Get actual desc_idx for this room from dungeon_room_descriptions
+            desc_idx = rdesc_by_room.get(dun_rid, 0)
+            desc_entry = descs_by_idx.get(desc_idx, {})
+            short = desc_entry.get('short_desc', "You're in a dungeon.")
+            long_ = desc_entry.get('long_desc', short)
 
-            short, long_ = '', ''
-            if self.dungeon_descs:
-                entry = self.dungeon_descs[d_idx]
-                short = entry.get('short_desc', '')
-                long_ = entry.get('long_desc', '')
+            # Darkness: DD2 zone_type==1 means dark (requires light source)
+            is_dark = dark_by_rid.get(dun_rid, 0) == 1
 
             room = Room(
                 room_id=game_room_id,
                 short_desc=short,
                 long_desc=long_,
                 is_dungeon=True,
-                is_dark=True,
-                desc_id=d_idx,
+                is_dark=is_dark,
+                desc_id=desc_idx,
+                resident_monster_id=0,  # Populated by monsters.populate_lairs()
+                resident_item_id=0,
             )
+            room.terrain = terrain_by_rid.get(dun_rid, -1)  # terrain type for wanderers
+
+            # Apply room attributes (traps)
+            # Format from parse_data: [trap_type, trap_arg, trap_arg2]
+            # trap_arg: for pit/one-way = dest_room_rid; for spike = XDES/XSTT index
+            # trap_msg (trap_arg2): secondary data
+            room_attrs = attrs_by_room.get(dun_rid, [])
+            if room_attrs:
+                room.trap_type = room_attrs[0]
+                if len(room_attrs) > 1:
+                    room.trap_arg = room_attrs[1]
+                if len(room_attrs) > 2:
+                    room.trap_msg = room_attrs[2]
 
             # Apply real exits
             raw_exits = exits_by_room.get(dun_rid, [0] * 10)
             for d in range(10):
                 ex = raw_exits[d] if d < len(raw_exits) else 0
                 if ex > 0:
-                    room.exits[d] = ex + DUNOFF   # convert to absolute room id
-                elif ex == -98:
-                    room.exits[d] = self.DUNGEON_TOWN_ENTRANCE  # return to town
+                    room.exits[d] = ex + DUNOFF   # convert RID to absolute room id
+                elif ex == -99:
+                    room.exits[d] = -99  # Special portal marker
+                elif ex < 0:
+                    room.exits[d] = 100 + ex  # Return to town room (ARNSUB + offset, e.g. -98 -> 2, -90 -> 10)
                 else:
                     room.exits[d] = 0
 
             self.rooms[game_room_id] = room
 
-        # Add dungeon entrance to town: docks (room 12) down -> dungeon room 1
-        docks = self.rooms.get(self.DUNGEON_TOWN_ENTRANCE)
-        if docks and docks.exits[DIR_D] == 0:
-            docks.exits[DIR_D] = DUNOFF + 1
+        # Apply gates/locked doors
+        all_gates = dd.get('gates', [])
+        for g in all_gates:
+            from_rid = g['from_room']
+            # Convert gate destination: positive=dungeon RID, negative=town (ARNSUB+offset), 0=none
+            def _cvt(to_room):
+                if to_room > 0:   return to_room + DUNOFF
+                elif to_room < 0: return 100 + to_room   # e.g. -98 -> 2, -90 -> 10
+                else:             return 0
+            if from_rid > 0:
+                game_room_id = from_rid + DUNOFF
+                if game_room_id in self.rooms:
+                    self.rooms[game_room_id].gates.append({
+                        'item_idx':  g.get('item_idx', 255),
+                        'direction': g.get('direction', -1),
+                        'consume':   g.get('consume', 0),
+                        'msg_idx':   g.get('msg_idx', 0),
+                        'to_room':   _cvt(g['to_room'])
+                    })
+            elif from_rid == -99:
+                self.global_gates.append({
+                    'item_idx':  g.get('item_idx', 255),
+                    'direction': g.get('direction', -1),
+                    'consume':   g.get('consume', 0),
+                    'msg_idx':   g.get('msg_idx', 0),
+                    'to_room':   _cvt(g['to_room'])
+                })
+
+        # Bidirectional connection: dungeon entrance room 101 already points Up -> room 2
+        # (via EXIT1 data: -98 -> 100+(-98) = 2). Set room 2 Down -> dungeon room 1.
+        room2 = self.rooms.get(2)
+        if room2 and room2.exits[DIR_D] == 0:
+            room2.exits[DIR_D] = DUNOFF + 1
+
+        # Add dungeon entrance from south plaza (room 10) SW -> dungeon room 183 (Mountains)
+        south_plaza = self.rooms.get(10)
+        if south_plaza and south_plaza.exits[DIR_SW] == 0:
+            south_plaza.exits[DIR_SW] = DUNOFF + 183
 
         # Rumors
         rumors_path = os.path.join(_data_dir, 'rumors.json')
@@ -211,51 +344,45 @@ class World:
         if not os.path.exists(path):
             return
         with open(path) as f:
-            shops = json.load(f)
-        for s in shops:
-            room_id = s['room']
-            stype = s['type']
-            self.shops[room_id] = stype
+            shops_data = json.load(f)
+        for s in shops_data:
+            room_id = s.get('room')
+            shop_cat = s.get('shop_cat', 0)
+            shop_type = s.get('shop_type', 0)
+            tier = s.get('shop_tier', 1)
+            
             if room_id in self.rooms:
-                self.rooms[room_id].shop_type = stype
+                room = self.rooms[room_id]
+                room.shop_cat = shop_cat
+                room.shop_type = shop_type
+                room.shop_tier = tier
 
     def _load_townsfolk(self):
-        path = os.path.join(_data_dir, 'townsfolk_types.json')
-        if not os.path.exists(path):
-            return
-        with open(path) as f:
-            self.townsfolk_types = json.load(f)
-        # Place some townsfolk in appropriate town rooms
-        self._place_townsfolk()
-
-    def _place_townsfolk(self):
-        """Place townsfolk NPC instances in town rooms based on shop type."""
-        shop_folk_map = {
-            SHOP_EQUIPMENT: [0, 1, 2, 3],  # shop keeper variants
-            SHOP_WEAPON:    [4, 5],
-            SHOP_ARMOR:     [2, 3],
-            SHOP_MAGIC:     [6, 7],        # crimson mage, master sorceror
-            SHOP_TEMPLE:    [8, 9],        # priests
-            SHOP_TAVERN:    [10, 11, 12],  # barkeep, barmaids
-            SHOP_INN:       [10, 13, 14],  # barkeep, barmaids
-        }
-        folk_id = 0
-        for room_id, shop_type in self.shops.items():
-            if shop_type in shop_folk_map:
-                for tidx in shop_folk_map.get(shop_type, []):
+        types_path = os.path.join(_data_dir, 'townsfolk_types.json')
+        inst_path = os.path.join(_data_dir, 'townsfolk_instances.json')
+        
+        if os.path.exists(types_path):
+            with open(types_path) as f:
+                self.townsfolk_types = json.load(f)
+                
+        if os.path.exists(inst_path):
+            with open(inst_path) as f:
+                instances = json.load(f)
+                for inst in instances:
+                    # inst: {id, type_id, room, name}
+                    tidx = inst['type_id']
                     if tidx < len(self.townsfolk_types):
                         ft = self.townsfolk_types[tidx]
                         self.townsfolk.append({
-                            'id': folk_id,
+                            'id': inst['id'],
                             'type_id': tidx,
-                            'room': room_id,
+                            'room': inst['room'],
                             'name': ft['name'],
                             'plural': ft['plural'],
                             'desc': ft['desc'],
                             'active': 1,
                             'prefix': ft.get('prefix', 0),
                         })
-                        folk_id += 1
 
     def _create_fallback_town(self):
         """Create a minimal town if data files aren't available."""
@@ -333,6 +460,11 @@ class World:
             return self.rooms[room_id].shop_type
         return SHOP_NONE
 
+    def get_shop_tier(self, room_id):
+        if room_id in self.rooms:
+            return self.rooms[room_id].shop_tier
+        return 1
+
     def is_shop(self, room_id, shop_type):
         return self.get_shop_type(room_id) == shop_type
 
@@ -349,18 +481,25 @@ class World:
     # ------------------------------------------------------------------
 
     def place_initial_items(self, items_db):
-        """Place items in dungeon rooms based on spawn data."""
+        """Place items in dungeon rooms based on range-based spawn data."""
         for spawn in self.item_spawns:
-            room_id = spawn['room'] + DUNOFF
-            room = self.rooms.get(room_id)
-            if room is None:
+            rng = spawn.get('room_range', [0, 0])
+            start, end = rng[0], rng[1]
+            chance = spawn.get('chance', 10)
+            item_list = spawn.get('items', [])
+            
+            if not item_list:
                 continue
-            item_type = spawn['item_type']
-            if item_type < 0 or item_type >= len(items_db):
-                continue
-            count = spawn.get('count', 1)
-            for _ in range(count):
-                slot = room.find_empty_item_slot()
-                if slot == -1:
-                    break
-                room.set_item(slot, item_type, 0)
+
+            for rid in range(start, end + 1):
+                # Check probability
+                if random.randint(1, 100) <= chance:
+                    room_id = rid + DUNOFF
+                    room = self.rooms.get(room_id)
+                    if room:
+                        # Pick a random item from the category
+                        item_idx = random.choice(item_list)
+                        if 0 <= item_idx < len(items_db):
+                            slot = room.find_empty_item_slot()
+                            if slot != -1:
+                                room.set_item(slot, item_idx, 0)

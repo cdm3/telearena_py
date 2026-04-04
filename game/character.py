@@ -99,6 +99,7 @@ class Character:
         # Location
         self.dun    = 0        # dungeon number (0 = town)
         self.loc    = 1        # room number
+        self.dungeon_return_room = 12  # town room to return to when exiting dungeon
 
         # Appearance
         self.complexion  = 1
@@ -177,6 +178,91 @@ class Character:
     def max_encumb(self):
         return self.phys2 * ENCUMB_MULT
 
+    def _calc_dynamic_mult(self):
+        """Calculate dynamic XP multiplier (calcxp() in original 5.6)."""
+        # Base multipliers
+        if self.clas in (CLS_SORCEROR, CLS_DRUID):  # 1, 5
+            base = 90
+        elif self.clas in (CLS_ACOLYTE, CLS_NECROLYTE):  # 2, 7
+            base = 75
+        elif self.clas == CLS_ROGUE:  # 3
+            base = 60
+        else:  # Warrior (0), Hunter (4), Archer (6)
+            base = 62
+
+        if self.promot:
+            # calcxp original: return(tmpx+(((arnarr[un].level-15)+1)*(tmpx>>1)));
+            # (L-15)+1 is L-14
+            return base + (self.level - 14) * (base // 2)
+        else:
+            # calcxp original: return(tmpx+((arnarr[un].level+1)*(tmpx>>1)));
+            return base + (self.level + 1) * (base // 2)
+
+    def can_advance(self):
+        """Check if character is ready for training (original 5.6 formula)."""
+        m = (self.level - 24) if self.promot else self.level
+        dynamic_mult = self._calc_dynamic_mult()
+        
+        axp = dynamic_mult * (m * m)
+        # Threshold: exp / (1000 + mult*m^2) >= Level
+        ep = int(self.exp / (DEFEPL + axp)) + 1
+        return ep > self.level
+
+    def get_next_level_xp(self):
+        """Calculate total experience required for next level (original 5.6 formula)."""
+        m = (self.level - 24) if self.promot else self.level
+        dynamic_mult = self._calc_dynamic_mult()
+        
+        axp = dynamic_mult * (m * m)
+        return self.level * (DEFEPL + axp)
+
+    def advance_level(self):
+        """Perform level-up stat increases (original 5.6 logic)."""
+        if not self.can_advance():
+            return False
+            
+        self.level += 1
+        
+        # SP gains
+        tmps = 0
+        if self.clas in (CLS_SORCEROR, CLS_NECROLYTE):
+            tmps = 2
+        elif self.clas in (CLS_ACOLYTE, CLS_DRUID):
+            tmps = 1
+            
+        if tmps > 0:
+            if self.promot:
+                tmps += 1
+            self.mspts += tmps
+            self.splpts += tmps
+            self.mspts2 = self.mspts
+            
+        # HP gains
+        idx = self.clas + (MAXCLASS if self.promot else 0)
+        # We'll use the hits from CLASS_DATA
+        class_bonus = CLASS_DATA[idx].get('hits', 0)
+        h = random.randint(DEFHPL, DEFHPH) + (self.stam2 >> 2) + class_bonus
+        
+        self.mhits += h
+        self.hits += h
+        self.mhits2 = self.mhits
+        
+        # Reset combat stats
+        self.atts = self.agil2 // 15 + 1
+        self.pulls = 0
+        
+        # 34% chance for stat restore
+        if random.randint(1, 100) < 34:
+             # reset the temporary stats to match primary stats
+             self.intl2 = self.intl
+             self.know2 = self.know 
+             self.phys2 = self.phys
+             self.stam2 = self.stam
+             self.agil2 = self.agil
+             self.chrs2 = self.chrs
+            
+        return True
+
     # ------------------------------------------------------------------
     # Serialization
     # ------------------------------------------------------------------
@@ -238,6 +324,50 @@ class Character:
             'grpnum': self.grpnum,
             'x': self.x, 'y': self.y, 'z': self.z,
         }
+
+    def can_promote(self):
+        """Check if character is ready for elite promotion (Level 25)."""
+        return self.level >= 25 and not self.promot
+
+    def promote(self):
+        """Perform elite promotion (original 5.6 logic)."""
+        if not self.can_promote():
+            return False
+            
+        self.promot = 1
+        self.level = 26
+        self.exp = 0
+        
+        # Apply primary stat bonuses for elite classes
+        # Original logic: arnarr[usrnum].stat = arnarr[usrnum].stat2 += tcla[tmpc].stat
+        idx = self.clas + MAXCLASS
+        cd = CLASS_DATA[idx]
+        
+        self.intl = self.intl2 = self.intl2 + cd.get('intl', 0)
+        self.know = self.know2 = self.know2 + cd.get('know', 0)
+        self.phys = self.phys2 = self.phys2 + cd.get('phys', 0)
+        self.stam = self.stam2 = self.stam2 + cd.get('stam', 0)
+        self.agil = self.agil2 = self.agil2 + cd.get('agil', 0)
+        self.chrs = self.chrs2 = self.chrs2 + cd.get('chrs', 0)
+        
+        # Base HP/SP for elite classes (from TSGARN-4.C:1310)
+        hp_bases = [950, 450, 750, 650, 900, 550, 850, 450]
+        sp_bases = [  0,  78,  52,   0,   0,  52,   0,  78]
+        
+        tmph = hp_bases[self.clas]
+        tmps = sp_bases[self.clas]
+        
+        # Roll extra HP: random(10,30) + stam/4 + class_bonus
+        class_bonus = cd.get('hits', 0)
+        h_roll = random.randint(10, 30) + (self.stam2 >> 2) + class_bonus
+        
+        self.mhits = self.hits = self.mhits2 = tmph + h_roll
+        self.mspts = self.splpts = self.mspts2 = tmps
+        
+        # Recalculate attacks/turn
+        self.atts = self.agil2 // 15 + 1
+        
+        return True
 
     def from_dict(self, d):
         for key, val in d.items():
@@ -312,7 +442,7 @@ def generate_character(char, numitm):
     char.hits = char.mhits
 
     # Generate SP: DEFSPT + class.spts; Sorceror(1) and Necrolyte(7) get +1  (genchr line 2505-2506)
-    char.mspts = DEFSPT + cd.get('spts', 0)
+    char.mspts = max(0, DEFSPT + cd.get('spts', 0))
     if char.clas in (CLS_SORCEROR, CLS_NECROLYTE):
         char.mspts += 1
     char.mspts2 = char.mspts
@@ -401,12 +531,14 @@ def find_item_in_inv(char, item_name, items_db, exact=False):
         idx = char.invent[i]
         if idx == -1 or idx >= len(items_db):
             continue
-        iname = items_db[idx]['name'].lower()
+        item = items_db[idx]
+        iname = item['name'].lower()
+        idesc = item.get('desc', '').lower()
         if exact:
-            if iname == name_lower:
+            if iname == name_lower or idesc == name_lower:
                 return i
         else:
-            if name_lower in iname or iname.startswith(name_lower):
+            if name_lower in iname or iname.startswith(name_lower) or name_lower in idesc:
                 return i
     return -1
 

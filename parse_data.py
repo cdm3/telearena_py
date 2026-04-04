@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """
-Parse Tele-Arena 5.6 data files (.MCV and .MSG) into JSON for the Python port.
-
-Run this once from the telearena_py directory:
-    python3 parse_data.py
+Parse Tele-Arena 5.6 Gold data files (.MSG and some .MCV) into JSON for the Python port.
+This version supports the newer .MSG-heavy format found in Tele-Arena 5.6d Gold.
 """
 
 import json
 import re
 import os
 
-SRC = os.path.join(os.path.dirname(__file__), 'Ta56dSrc')
+SRC = os.path.join(os.path.dirname(__file__), 'ta_bbs')
 OUT = os.path.join(os.path.dirname(__file__), 'data')
 os.makedirs(OUT, exist_ok=True)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,6 +18,8 @@ os.makedirs(OUT, exist_ok=True)
 
 def read_null_parts(filename):
     """Read a .MCV file and return list of null-separated non-empty strings."""
+    if not os.path.exists(filename):
+        return []
     with open(filename, 'rb') as f:
         data = f.read()
     parts = []
@@ -32,41 +31,49 @@ def read_null_parts(filename):
         parts.append(s)
     return parts
 
+def parse_msg_file(filename):
+    """Parse a Major BBS .MSG file into a dict of {name: text}."""
+    if not os.path.exists(filename):
+        return {}
+    with open(filename, 'r', encoding='latin-1', errors='replace') as f:
+        content = f.read()
+    
+    messages = {}
+    # Pattern: NAME {content} T/S/B/N Description
+    # Use [\w-] to allow hyphens in keys like DD1-1
+    pattern = re.compile(r'^([\w-]+)\s*\{(.*?)\}\s*(?:T|S|B|N|)\b', re.MULTILINE | re.DOTALL)
+    for m in pattern.finditer(content):
+        name = m.group(1).upper().replace('-', '_')
+        text = m.group(2).strip()
+        messages[name] = text
+    return messages
 
 def parse_ints(s):
     """Parse a space-separated string of integers."""
+    if not s: return []
     try:
+        s = s.replace(',', ' ')
         return [int(x) for x in s.split()]
     except ValueError:
         return []
 
+def _skip_empty(parts, idx):
+    while idx < len(parts) and parts[idx] == '':
+        idx += 1
+    return idx
 
 # ---------------------------------------------------------------------------
-# Parse TSGARN-D.MCV  -- items, spells, monsters, misc weapons
+# Items, spells, and monsters (TSGARN-D.MSG)
 # ---------------------------------------------------------------------------
 
-def parse_items_spells_monsters():
-    parts = read_null_parts(os.path.join(SRC, 'TSGARN-D.MCV'))
-
-    # ---- ITEMS ----
-    # parts[0] = 'English/ANSI', parts[1] = '', parts[2] = item count
-    idx = 2
-    num_items = int(parts[idx]); idx += 1
+def parse_items_gold():
+    msg_d = parse_msg_file(os.path.join(SRC, 'TSGARN-D.MSG'))
+    num_items = int(msg_d.get('ITEMTOT', '0'))
     items = []
-    for _ in range(num_items):
-        # skip blanks
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        name = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        desc = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        stats_str = parts[idx]; idx += 1
-        stats = parse_ints(stats_str)
-        # Stats: price wt range mindam maxdam type armor charges effect
-        #        clas grpsiz room rune poison level shop
+    for i in range(1, num_items + 1):
+        name = msg_d.get(f'INAM{i}', f'Item {i}')
+        desc = msg_d.get(f'IDES{i}', '')
+        stats = parse_ints(msg_d.get(f'ISTT{i}', ''))
         item = {
             'name': name,
             'desc': desc,
@@ -86,36 +93,19 @@ def parse_items_spells_monsters():
             'poison': stats[13] if len(stats) > 13 else 0,
             'level': stats[14] if len(stats) > 14 else 0,
             'shop': stats[15] if len(stats) > 15 else 0,
-            'proj_desc': '',
+            'proj_desc': msg_d.get(f'IEFF{i}', ''),
         }
-        # Items with effect=12 or 15 (fire projectiles) have an extra desc
-        if item['effect'] in (12, 15):
-            while idx < len(parts) and parts[idx] == '':
-                idx += 1
-            # peek - if it looks like a description (not a number-only string), consume it
-            if idx < len(parts) and parts[idx] and not parts[idx][0].isdigit():
-                # Make sure it's not the next item's name by checking if next-next is a desc
-                item['proj_desc'] = parts[idx]; idx += 1
         items.append(item)
+    return items
 
-    # ---- SPELLS ----
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_spells = int(parts[idx]); idx += 1
+def parse_spells_gold():
+    msg_d = parse_msg_file(os.path.join(SRC, 'TSGARN-D.MSG'))
+    num_spells = int(msg_d.get('SPLTOT', '0'))
     spells = []
-    for _ in range(num_spells):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        name = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        desc = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        stats_str = parts[idx]; idx += 1
-        stats = parse_ints(stats_str)
-        # Stats: type level mindam maxdam mdice price multi armor poison psn
-        #        mdrain sdrain sboost move vamp
+    for i in range(1, num_spells + 1):
+        name = msg_d.get(f'SNAM{i}', f'Spell {i}')
+        desc = msg_d.get(f'SDES{i}', '')
+        stats = parse_ints(msg_d.get(f'SSTT{i}', ''))
         spell = {
             'name': name,
             'desc': desc,
@@ -136,483 +126,454 @@ def parse_items_spells_monsters():
             'vamp': stats[14] if len(stats) > 14 else 0,
         }
         spells.append(spell)
+    return spells
 
-    # ---- MONSTERS ----
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_monsters = int(parts[idx]); idx += 1
+def parse_monsters_gold():
+    """Parse monsters from TSGARN-D.MSG using monarr struct field order:
+    MSTT fields: prefix, cskl, terr, gp, trs, ac, sach, hd, regen,
+                 mindam, maxdam, minspc, maxspc, effect, mineff, maxeff,
+                 spcabn, atts, level, morale, sskl, spllst, minspl, maxspl,
+                 gender, subtyp
+    """
+    msg_d = parse_msg_file(os.path.join(SRC, 'TSGARN-D.MSG'))
+    num_mobs = int(msg_d.get('MOBTOT', '0'))
     monsters = []
-    for _ in range(num_monsters):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        if idx >= len(parts):
-            break
-        name = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        long_desc = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        stats_str = parts[idx]; idx += 1
-        stats = parse_ints(stats_str)
-        # Stats: prefix cskl terr gp trs ac sach hd regen mindam maxdam
-        #        minspc maxspc effect mineff maxeff spcabn atts level morale
-        #        sskl spllst minspl maxspl gender subtyp
+    for i in range(1, num_mobs + 1):
+        name = msg_d.get(f'MNAM{i}', f'Monster {i}')
+        desc = msg_d.get(f'MDES{i}', '')
+        stats = parse_ints(msg_d.get(f'MSTT{i}', ''))
+        # monarr struct field mapping (0-indexed):
+        # [0]=prefix [1]=cskl [2]=terr [3]=gp [4]=trs [5]=ac [6]=sach
+        # [7]=hd [8]=regen [9]=mindam [10]=maxdam [11]=minspc [12]=maxspc
+        # [13]=effect [14]=mineff [15]=maxeff [16]=spcabn [17]=atts
+        # [18]=level [19]=morale [20]=sskl [21]=spllst [22]=minspl
+        # [23]=maxspl [24]=gender [25]=subtyp
+        def s(idx, default=0): return stats[idx] if len(stats) > idx else default
         monster = {
             'name': name,
-            'long_desc': long_desc,
-            'prefix': stats[0] if len(stats) > 0 else 0,
-            'cskl': stats[1] if len(stats) > 1 else 75,
-            'terr': stats[2] if len(stats) > 2 else 0,
-            'gp': stats[3] if len(stats) > 3 else 0,
-            'trs': stats[4] if len(stats) > 4 else 0,
-            'ac': stats[5] if len(stats) > 5 else 0,
-            'sach': stats[6] if len(stats) > 6 else 0,
-            'hd': stats[7] if len(stats) > 7 else 1,
-            'regen': stats[8] if len(stats) > 8 else 0,
-            'mindam': stats[9] if len(stats) > 9 else 1,
-            'maxdam': stats[10] if len(stats) > 10 else 4,
-            'minspc': stats[11] if len(stats) > 11 else 0,
-            'maxspc': stats[12] if len(stats) > 12 else 0,
-            'effect': stats[13] if len(stats) > 13 else 0,
-            'mineff': stats[14] if len(stats) > 14 else 0,
-            'maxeff': stats[15] if len(stats) > 15 else 0,
-            'spcabn': stats[16] if len(stats) > 16 else 0,
-            'atts': stats[17] if len(stats) > 17 else 1,
-            'level': stats[18] if len(stats) > 18 else 1,
-            'morale': stats[19] if len(stats) > 19 else 50,
-            'sskl': stats[20] if len(stats) > 20 else 0,
-            'spllst': stats[21] if len(stats) > 21 else 0,
-            'minspl': stats[22] if len(stats) > 22 else 0,
-            'maxspl': stats[23] if len(stats) > 23 else 0,
-            'gender': stats[24] if len(stats) > 24 else 0,
-            'subtyp': stats[25] if len(stats) > 25 else 0,
-            'plural': '',
-            'weapon': '',
-            'spcatt': '',
-            'spcabd': '',
-        }
-        # 4 optional string fields (plural, weapon, special attack, special ability)
-        for field in ('plural', 'weapon', 'spcatt', 'spcabd'):
-            while idx < len(parts) and parts[idx] == '':
-                idx += 1
-            if idx < len(parts):
-                val = parts[idx]
-                # Stop if this looks like the next monster's name (followed by a long desc)
-                # We detect by checking: if next item is a long description string (>50 chars)
-                # Actually we just always read 4 fields regardless
-                monster[field] = val
-                idx += 1
-        monsters.append(monster)
-
-    return items, spells, monsters
-
-
-# ---------------------------------------------------------------------------
-# Parse TSGARN-T.MCV  -- town rooms (exits + descriptions) + townsfolk
-# ---------------------------------------------------------------------------
-
-def parse_town_data():
-    parts = read_null_parts(os.path.join(SRC, 'TSGARN-T.MCV'))
-    idx = 2  # skip header + empty
-
-    # ---- SHOP/EXIT MAPPING DATA (not needed directly - it's redundant with room exits) ----
-    # Read the count (number of shop type entries)
-    num_shop_entries = int(parts[idx]); idx += 1
-    shop_entries = []
-    for _ in range(num_shop_entries):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        s = parts[idx]; idx += 1
-        shop_entries.append(parse_ints(s))
-
-    # ---- TOWNSFOLK COUNT ----
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_folk_types = int(parts[idx]); idx += 1
-
-    # ---- TOWNSFOLK RECORDS ----
-    townsfolk_types = []
-    for _ in range(num_folk_types):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        prefix_str = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        name = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        plural = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        desc = parts[idx]; idx += 1
-        townsfolk_types.append({
-            'prefix': int(prefix_str) if prefix_str.isdigit() else 0,
-            'name': name,
-            'plural': plural,
             'desc': desc,
-        })
-
-    # ---- TOWN ROOM EXITS ----
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_rooms = int(parts[idx]); idx += 1
-    town_exits = []
-    for _ in range(num_rooms):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        row = parse_ints(parts[idx]); idx += 1
-        # Pad to 10 directions
-        while len(row) < 10:
-            row.append(0)
-        town_exits.append(row[:10])
-
-    # ---- TOWN ROOM DESCRIPTIONS ----
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_descs = int(parts[idx]); idx += 1
-    town_rooms = []
-    for room_num in range(num_descs):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        short_desc = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        long_desc = parts[idx]; idx += 1
-        exits = town_exits[room_num] if room_num < len(town_exits) else [0]*10
-        town_rooms.append({
-            'id': room_num + 1,  # 1-indexed
-            'short_desc': short_desc,
-            'long_desc': long_desc,
-            'exits': exits,  # [N,S,E,W,NE,NW,SE,SW,U,D]
-        })
-
-    return town_rooms, townsfolk_types
-
+            'plural': msg_d.get(f'MPLU{i}', name + 's'),
+            'weapon': msg_d.get(f'MWEP{i}', 'claws'),
+            'prefix': s(0),
+            'cskl':   s(1),    # combat skill
+            'terr':   s(2),    # terrain type (used by chkter() for wandering spawn)
+            'gp':     s(3),    # gold dropped
+            'trs':    s(4),    # lair treasure
+            'ac':     s(5),    # armor class
+            'sach':   s(6),    # special attack chance
+            'hd':     s(7),    # hit dice
+            'regen':  s(8),    # regeneration
+            'min_dam':s(9),    # min damage
+            'max_dam':s(10),   # max damage
+            'minspc': s(11),   # min special damage
+            'maxspc': s(12),   # max special damage
+            'effect': s(13),   # special effect type
+            'mineff': s(14),
+            'maxeff': s(15),
+            'spcabn': s(16),   # special ability number
+            'atts':   s(17),   # attacks per round
+            'level':  s(18),   # monster level
+            'morale': s(19),
+            'sskl':   s(20),   # spell skill
+            'spllst': s(21),   # spell list
+            'minspl': s(22),
+            'maxspl': s(23),
+            'gender': s(24),
+            'subtyp': s(25),
+        }
+        monsters.append(monster)
+    return monsters
 
 # ---------------------------------------------------------------------------
-# Parse TSGARNDT.MCV  -- dungeon room descriptions
+# Town Rooms (TSGARN-T.MCV)
 # ---------------------------------------------------------------------------
 
-def parse_dungeon_rooms():
-    parts = read_null_parts(os.path.join(SRC, 'TSGARNDT.MCV'))
-    idx = 2  # skip header + empty
+def parse_town_rooms_gold():
+    msg_t = parse_msg_file(os.path.join(SRC, 'TSGARN-T.MSG'))
+    # Room descriptions (Offsets from TSGARN-T.MCV in Part 2 logic)
+    parts_t = read_null_parts(os.path.join(SRC, 'TSGARN-T.MCV'))
+    
+    rooms = []
+    for i in range(1, 76):
+        # T3 is Names, T4 is Descriptions? (In Gold, often these are binary offsets)
+        # We use the offsets identified previously (Part 102 for exits, Part 178 for desc)
+        ex_idx = 101 + i
+        # Every town room has a 2-part block: [Short Name, Long Description]
+        name_idx = 178 + (i - 1) * 2
+        ds_idx = 178 + (i - 1) * 2 + 1
+        
+        exits = parse_ints(parts_t[ex_idx]) if ex_idx < len(parts_t) else [0]*10
+        name = parts_t[name_idx] if name_idx < len(parts_t) else f"Town Room {i}"
+        desc = parts_t[ds_idx] if ds_idx < len(parts_t) else name
+        
+        rooms.append({
+            'id': i,
+            'short_desc': name.strip(),
+            'long_desc': desc,
+            'exits': exits[:10]
+        })
+    
+    # Townsfolk Definitions
+    townsfolk_types = []
+    try:
+        t2_tot = int(msg_t.get('T2TOT', 0))
+        for i in range(1, t2_tot + 1):
+            townsfolk_types.append({
+                'id': i - 1,
+                'name': msg_t.get(f'SNAM{i}', f'Denizen {i}'),
+                'plural': msg_t.get(f'SPLU{i}', f'Denizens {i}'),
+                'desc': msg_t.get(f'SDES{i}', ''),
+                'type': int(msg_t.get(f'SMTY{i}', 0))
+            })
+    except: pass
 
-    # rumor messages come first
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_rumors = int(parts[idx]); idx += 1
-    rumors = []
-    for _ in range(num_rumors):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        rumors.append(parts[idx]); idx += 1
+    # Townsfolk Instances (Locations)
+    townsfolk_instances = []
+    try:
+        t1_tot = int(msg_t.get('T1TOT', 0))
+        for i in range(1, t1_tot + 1):
+            raw = msg_t.get(f'T1NO{i}', '')
+            vals = parse_ints(raw)
+            if len(vals) >= 2:
+                type_idx, room_id = vals[0], vals[1]
+                if type_idx < len(townsfolk_types):
+                    townsfolk_instances.append({
+                        'id': i,
+                        'type_id': type_idx,
+                        'room': room_id,
+                        'name': townsfolk_types[type_idx]['name']
+                    })
+    except: pass
 
-    # dungeon room descriptions
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    num_rooms = int(parts[idx]); idx += 1
+    return rooms, townsfolk_types, townsfolk_instances
+
+# ---------------------------------------------------------------------------
+# Dungeon Rooms (TSGARNDD.MSG)
+# ---------------------------------------------------------------------------
+
+def parse_dungeon_data_gold():
+    msg_dd = parse_msg_file(os.path.join(SRC, 'TSGARNDD.MSG'))
+    msg_dt = parse_msg_file(os.path.join(SRC, 'TSGARNDT.MSG')) # Room descriptions
+    parts_dd = read_null_parts(os.path.join(SRC, 'TSGARNDD.MCV'))
+
+    total_rooms = 4064
     dungeon_rooms = []
-    for i in range(num_rooms):
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        short_desc = parts[idx]; idx += 1
-        while idx < len(parts) and parts[idx] == '':
-            idx += 1
-        long_desc = parts[idx]; idx += 1
+    dungeon_exits = {}
+    dungeon_room_descriptions = {}
+    
+    # In Tele-Arena 5.6 Gold TSGARNDD.MCV:
+    # Part 4: num_monster_spawns (DD1TOT)
+    # Part 5..N: Monster Spawn Ranges
+    # Part 38: num_item_spawns (DD2TOT)
+    # Part 39..N: Item Spawn Ranges
+    # Part 75..N: Monster Category Lists (DD1_1, DD1_2...)
+    # Part 108..N: Item Category Lists (DD2_1, DD2_2...)
+    
+    # -----------------------------------------------------------------------
+    # LAIR entries: Fixed per-room monster placements
+    # LAIR{n} = {room_rid, monster_type, count, guardian_flag, unk}
+    # Source: SYSCMD.H relair command — BOTH branches spawn lair[i][1]:
+    #   if (j==count-1) && guardian_flag > 0:
+    #     genmon(room+DUNOFF, lair[i][1], ..., lair_index)  <- tagged as guardian
+    #   else:
+    #     genmon(room+DUNOFF, lair[i][1], ..., -1)          <- untagged
+    # field[3] is NOT a secondary monster — it is a guardian tag flag!
+    # -----------------------------------------------------------------------
+    fixed_lairs = []
+    try:
+        lair_tot = int(msg_dd.get('LAIRTOT', 442))
+        for i in range(1, lair_tot + 1):
+            raw = msg_dd.get(f'LAIR{i}', '')
+            vals = parse_ints(raw)
+            if len(vals) >= 3:
+                room_rid      = vals[0]                              # 1-based RID (no DUNOFF)
+                monster_type  = vals[1]                              # 1-indexed (MNAM1..MNAM161)
+                count         = max(1, vals[2])                      # number to spawn
+                guardian_flag = vals[3] if len(vals) > 3 else 0     # if > 0: last is guardian
+                lair_unk      = vals[4] if len(vals) > 4 else 0     # debug value (lair[i][4])
+                if monster_type > 0:
+                    fixed_lairs.append({
+                        'room':    room_rid + 100,    # WorldID = RID + DUNOFF
+                        'monster': monster_type,       # 1-indexed; spawn ALL count of this type
+                        'count':   count,
+                        'guardian_flag': guardian_flag,  # if > 0: last monster is a guardian
+                        'unk':     lair_unk
+                    })
+    except Exception as e:
+        print(f"Error parsing LAIR entries: {e}")
+    print(f"  Parsed {len(fixed_lairs)} fixed lairs")
+
+    # -----------------------------------------------------------------------
+    # DD1 entries: Darkness / zone-type classification ranges
+    # DD1-{n} = {start_rid, end_rid, zone_type}
+    # zone_type: 0 = normal/lit area, 1 = dark zone
+    # -----------------------------------------------------------------------
+    dark_zones = []
+    try:
+        dd1_tot = int(msg_dd.get('DD1TOT', 33))
+        for i in range(1, dd1_tot + 1):
+            raw = msg_dd.get(f'DD1_{i}', '')
+            vals = parse_ints(raw)
+            if len(vals) >= 3:
+                dark_zones.append({
+                    'start': vals[0] + 100,   # WorldID
+                    'end':   vals[1] + 100,
+                    'zone_type': vals[2]       # 0=normal, 1=dark
+                })
+    except Exception as e:
+        print(f"Error parsing DD1 zones: {e}")
+
+    # -----------------------------------------------------------------------
+    # DD2 entries: Terrain / wandering monster zone ranges
+    # DD2-{n} = {start_rid, end_rid, terrain_type}
+    # terrain_type: 0-9 = terrain class (matches MSTT.terr field on monsters)
+    #               99  = no wandering monsters in this zone
+    # Source: chkter(ter) returns appropriate monster for current room terrain
+    # -----------------------------------------------------------------------
+    terrain_zones = []
+    try:
+        dd2_tot = int(msg_dd.get('DD2TOT', 35))
+        for i in range(1, dd2_tot + 1):
+            raw = msg_dd.get(f'DD2_{i}', '')
+            vals = parse_ints(raw)
+            if len(vals) >= 3:
+                terrain_zones.append({
+                    'start':   vals[0] + 100,   # WorldID
+                    'end':     vals[1] + 100,
+                    'terrain': vals[2]           # 99 = no wander
+                })
+    except Exception as e:
+        print(f"Error parsing DD2 terrain zones: {e}")
+
+    # Legacy fields (kept for compatibility but not used for primary spawning)
+    monster_spawns = []
+    item_spawns = []
+
+    for i in range(1, total_rooms + 1):
+        # Exits and Description
+        raw = msg_dd.get(f'EXIT{i}', '')
+        vals = parse_ints(raw)
+        desc_idx = 0
+        if len(vals) >= 10:
+            dungeon_exits[i] = vals[:10]
+            if len(vals) >= 11:
+                desc_idx = vals[10]
+                dungeon_room_descriptions[i] = desc_idx
+        
+        # Room text from TSGARNDT.MSG
+        long_ = msg_dt.get(f'ROOM{desc_idx}', '')
+        short = f'Room {i}'
+        if long_:
+            lines = long_.split('\n')
+            if len(lines) > 0:
+                short = lines[0].strip()
+        
         dungeon_rooms.append({
-            'desc_id': i,
-            'short_desc': short_desc,
-            'long_desc': long_desc,
+            'id': i + 100, # DUNOFF = 100
+            'short_desc': short,
+            'long_desc': long_ if long_ else "You're in a cave.",
+            'resident_monster': 0, # Rely on spawns for now
+            'resident_item': 0
         })
 
-    return dungeon_rooms, rumors
+    # Gates (from MCV)
+    parts_dd = read_null_parts(os.path.join(SRC, 'TSGARNDD.MCV'))
+    gates = []
+    dungeon_attributes = {}
+    try:
+        dtot_vals = parse_ints(parts_dd[785]) # DOORTOT is at 785
+        num_gates = dtot_vals[0] if dtot_vals else 0
+        idx = 786 # DOOR1 starts at 786
+        hazard_types = {43: 1, 49: 2, 47: 2, 48: 2, 45: 2, 22: 3}
+        for _ in range(num_gates):
+            vals = parse_ints(parts_dd[idx]); idx += 1
+            if len(vals) >= 4:
+                g_type = vals[0]
+                from_rid = vals[1]
+                to_rid = vals[2]
+                
+                # Determine direction by matching slot in EXIT record
+                direction = -1
+                if from_rid in dungeon_exits:
+                    exits = dungeon_exits[from_rid]
+                    if to_rid in exits:
+                        direction = exits.index(to_rid)
+                
+                # Hazard check
+                if g_type in hazard_types:
+                    h_type = hazard_types[g_type]
+                    # MCV hazard format: [type, dest_or_arg, secondary_arg]
+                    # vals[3] = primary arg (dest room for pit; message index for others)
+                    # vals[4] = secondary arg
+                    dungeon_attributes[from_rid] = [h_type, vals[3], vals[4] if len(vals) > 4 else 0]
+                
+                # Door check
+                # 32-49 are typically directional locks/doors/special in Gold
+                elif direction != -1:
+                    key_map = {
+                        1: 39, # Copper
+                        2: 38, # Iron
+                        3: 41, # Bronze
+                        4: 40, # Brass
+                        5: 42, # Silver
+                        6: 43, # Electrum
+                        7: 44, # Gold
+                        8: 45, # Platinum
+                        9: 46, # Pearl
+                        10: 47,# Onyx
+                        11: 48,# Jade
+                        12: 49 # Ruby
+                    }
+                    gate = {
+                        'type': g_type,
+                        'from_room': from_rid,
+                        'to_room': to_rid,
+                        'arg': vals[3],
+                        'msg_idx': vals[4] if len(vals) > 4 else 0,
+                        'item_idx': key_map.get(vals[3], 255),
+                        'direction': direction,
+                        'consume': 1
+                    }
+                    gates.append(gate)
+    except Exception as e:
+        print(f"Error parsing gates: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Parse TSGARNDD.MCV  -- dungeon layout, monster spawns, item spawns
-# ---------------------------------------------------------------------------
-
-def _skip_empty(parts, idx):
-    while idx < len(parts) and parts[idx] == '':
-        idx += 1
-    return idx
-
-def parse_dungeon_data():
-    parts = read_null_parts(os.path.join(SRC, 'TSGARNDD.MCV'))
-    idx = 2  # skip header + empty
-
-    # World name (e.g. 'World One')
-    idx = _skip_empty(parts, idx)
-    world_name = parts[idx]; idx += 1
-
-    # Number of worlds/dungeons (e.g. '1') — NOT the room count
-    idx = _skip_empty(parts, idx)
-    _num_worlds = int(parts[idx]); idx += 1
-
-    # Item level ranges  (num_item_ranges entries of 3 ints)
-    idx = _skip_empty(parts, idx)
-    num_item_ranges = int(parts[idx]); idx += 1
-    item_ranges = []
-    for _ in range(num_item_ranges):
-        idx = _skip_empty(parts, idx)
-        item_ranges.append(parse_ints(parts[idx])); idx += 1
-
-    # Terrain level ranges  (num_terr_ranges entries of 3 ints)
-    idx = _skip_empty(parts, idx)
-    num_terr_ranges = int(parts[idx]); idx += 1
-    terr_ranges = []
-    for _ in range(num_terr_ranges):
-        idx = _skip_empty(parts, idx)
-        terr_ranges.append(parse_ints(parts[idx])); idx += 1
-
-    # Monster spawns: room monster_type count variant difficulty
-    idx = _skip_empty(parts, idx)
-    num_mon_spawns = int(parts[idx]); idx += 1
-    monster_spawns = []
-    for _ in range(num_mon_spawns):
-        idx = _skip_empty(parts, idx)
-        vals = parse_ints(parts[idx]); idx += 1
-        if len(vals) >= 5:
-            monster_spawns.append({
-                'room': vals[0],
-                'monster_type': vals[1],
-                'count': vals[2],
-                'variant': vals[3],
-                'difficulty': vals[4],
-            })
-
-    # Item spawns: room item_type count variant ? ? ? ?
-    idx = _skip_empty(parts, idx)
-    num_item_spawns = int(parts[idx]); idx += 1
-    item_spawns = []
-    for _ in range(num_item_spawns):
-        idx = _skip_empty(parts, idx)
-        vals = parse_ints(parts[idx]); idx += 1
-        if len(vals) >= 4:
-            item_spawns.append({
-                'room': vals[0],
-                'item_type': vals[1],
-                'count': vals[2],
-                'variant': vals[3],
-            })
-
-    # Special items (gates, portals, etc.) — skip, we don't use them in pathing
-    idx = _skip_empty(parts, idx)
-    num_special = int(parts[idx]); idx += 1
-    for _ in range(num_special):
-        idx = _skip_empty(parts, idx)
-        idx += 1  # skip entry
-
-    # Dungeon room exits: num_dun_rooms entries, each has 11 values:
-    #   N S E W NE NW SE SW U D desc_idx
-    # Exit values are 1-based dungeon room numbers (0=no exit, negative=special)
-    # -98 = exit to town dungeon entrance
-    idx = _skip_empty(parts, idx)
-    num_dun_rooms = int(parts[idx]); idx += 1
-    dungeon_exits = {}  # 1-based room number -> [N,S,E,W,NE,NW,SE,SW,U,D]
-    dungeon_room_descriptions = {}  # 1-based room number -> desc_idx
-    for room_num in range(1, num_dun_rooms + 1):
-        idx = _skip_empty(parts, idx)
-        if idx >= len(parts):
-            break
-        vals = parse_ints(parts[idx]); idx += 1
-        if len(vals) >= 10:
-            exits = vals[:10]
-            dungeon_exits[room_num] = exits
-        if len(vals) >= 11:
-            dungeon_room_descriptions[room_num] = vals[10]
+    # Parse TRIG (trigger/trap) records from TSGARNDD.MSG
+    # Format: {room_rid trap_type trap_arg trap_arg2 arg3 arg4 arg5 enabled}
+    # trap_type: 1=pit, 2=spike, 3=one-way passage, 4=special/conditional
+    # trap_arg:  type1/3: dest_room_rid; type2: XDES/XSTT index (1-10)
+    # trap_arg2: secondary data (rogpen override, flags, etc.)
+    try:
+        trig_tot = int(msg_dd.get('TRIGTOT', 0))
+        for i in range(1, trig_tot + 1):
+            raw = msg_dd.get(f'TRIG{i}', '')
+            vals = parse_ints(raw)
+            if len(vals) >= 2:
+                room_rid  = vals[0]
+                trap_type = vals[1]
+                trap_arg  = vals[2] if len(vals) > 2 else 0
+                trap_arg2 = vals[3] if len(vals) > 3 else 0
+                enabled   = vals[7] if len(vals) > 7 else 1
+                if enabled and trap_type > 0 and room_rid > 0:
+                    dungeon_attributes[room_rid] = [trap_type, trap_arg, trap_arg2]
+        print(f"  Parsed {trig_tot} trap triggers into dungeon_attributes")
+    except Exception as e:
+        print(f"Error parsing TRIG entries: {e}")
 
     return {
-        'world_name': world_name,
-        'num_dun_rooms': num_dun_rooms,
-        'monster_spawns': monster_spawns,
-        'item_spawns': item_spawns,
-        'item_ranges': item_ranges,
-        'terr_ranges': terr_ranges,
+        'world_name': msg_dd.get('WORLD', 'World One'),
+        'num_dun_rooms': total_rooms,
+        'fixed_lairs': fixed_lairs,         # Fixed per-room monster placements
+        'terrain_zones': terrain_zones,      # DD2: terrain type per RID range (for wanderers)
+        'dark_zones': dark_zones,            # DD1: darkness zone ranges
+        'monster_spawns': monster_spawns,    # Legacy (unused)
+        'item_spawns': item_spawns,          # Legacy (unused)
+        'gates': gates,
         'dungeon_exits': dungeon_exits,
         'dungeon_room_descriptions': dungeon_room_descriptions,
+        'dungeon_attributes': dungeon_attributes,
+        'rooms': dungeon_rooms
     }
 
-
 # ---------------------------------------------------------------------------
-# Parse .MSG files  -- game messages
-# ---------------------------------------------------------------------------
-
-def parse_msg_file(filename):
-    """Parse a Major BBS .MSG file into a dict of {name: text}."""
-    try:
-        with open(filename, 'r', encoding='latin-1', errors='replace') as f:
-            content = f.read()
-    except FileNotFoundError:
-        return {}
-
-    messages = {}
-    # Pattern: NAME {content} T/S/B/N Description
-    # Content can be multi-line
-    pattern = re.compile(r'(\w+)\s*\{(.*?)\}\s*(?:T|S|B|N)\b', re.DOTALL)
-    for m in pattern.finditer(content):
-        name = m.group(1)
-        text = m.group(2)
-        # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
-        messages[name] = text
-
-    return messages
-
-
-# ---------------------------------------------------------------------------
-# Parse misc weapon types from TSGARNDD.MCV remainder
-# (monster weapon table used for armed monsters like skeleton warriors)
+# Shops
 # ---------------------------------------------------------------------------
 
-def parse_monster_weapons():
-    """Parse monster weapon types from TSGARN-D.MCV after monster block."""
-    # The monster weapon types are in TSGARN-D.MCV but we'll use a simple
-    # approach: read all remaining text after monsters and parse weapon records
-    # For now, return a hardcoded minimal list matching what the code uses
-    # These are used when a monster is armed (shown as "armed with %s %s")
-    weapons = [
-        {'name': 'a rusty sword', 'type': 1, 'prefix': 1, 'mindam': 1, 'maxdam': 4},
-        {'name': 'a club', 'type': 1, 'prefix': 1, 'mindam': 1, 'maxdam': 3},
-        {'name': 'a spear', 'type': 1, 'prefix': 1, 'mindam': 1, 'maxdam': 6},
-        {'name': 'a dagger', 'type': 1, 'prefix': 1, 'mindam': 1, 'maxdam': 3},
-        {'name': 'a mace', 'type': 2, 'prefix': 1, 'mindam': 1, 'maxdam': 6},
-        {'name': 'a morningstar', 'type': 2, 'prefix': 1, 'mindam': 2, 'maxdam': 8},
-        {'name': 'a shortsword', 'type': 3, 'prefix': 1, 'mindam': 1, 'maxdam': 6},
-        {'name': 'a longsword', 'type': 3, 'prefix': 1, 'mindam': 2, 'maxdam': 10},
-        {'name': 'a battleax', 'type': 4, 'prefix': 1, 'mindam': 2, 'maxdam': 12},
-        {'name': 'a halberd', 'type': 4, 'prefix': 1, 'mindam': 3, 'maxdam': 15},
-    ]
-    return weapons
-
-
-# ---------------------------------------------------------------------------
-# Parse shop data from TSGARN-T.MCV shop entries
-# ---------------------------------------------------------------------------
-
-def build_shop_data(town_rooms):
-    """
-    Determine which shops are at which town rooms based on room descriptions.
-    Shop types: 0=none, 1=equipment, 2=weapon, 3=armor, 4=magic, 5=guild,
-                6=temple, 7=vault, 8=tavern, 9=arena, 10=inn
-    """
-    shop_keywords = {
-        'equipment shop': 1,
-        'weapon shop': 2,
-        'armor shop': 3,
-        'magic shop': 4,
-        'guild hall': 5,
-        'temple': 6,
-        'vault': 7,
-        'tavern': 8,
-        'arena': 9,
-        'inn': 10,
-        'docks': 11,
-    }
+def build_shop_data(town_rooms, townsfolk_instances):
     shops = []
+    # Town Tier mapping for Gold (1: Port, 2: Forest, 3: Secret/High)
+    # Tier 1: 1-10
+    # Tier 2: 11-40
+    # Tier 3: 41+
     for room in town_rooms:
-        desc = room['short_desc'].lower()
+        rid = room['id']
+        name = room['short_desc'].lower()
+        
+        shop_cat = 0
         shop_type = 0
-        for keyword, stype in shop_keywords.items():
-            if keyword in desc:
-                shop_type = stype
+        # Categories (1-4): EQUIP=1, WEAPON=2, ARMOR=3, MAGIC=4
+        if "武器" in name or "weapon" in name or "smithy" in name: shop_cat, shop_type = 2, 2
+        elif "防具" in name or "armor" in name: shop_cat, shop_type = 3, 3
+        elif "魔法" in name or "magic" in name or "alchemy" in name: shop_cat, shop_type = 4, 4
+        elif "道具" in name or "equipment" in name or "shop" in name: shop_cat, shop_type = 1, 1
+        
+        # Specialty Shop Types (5-11): GUILD=5, TEMPLE=6, VAULT=7, TAVERN=8, ARENA=9, INN=10, DOCKS=11
+        # Check for denizens in this room - Denizen HINTS OVERRIDE general categories
+        # PORT TOWN PROTECTION: Rooms 3, 6, 7, 9 are strictly shops in Port Town.
+        is_port_shop = rid in (3, 6, 7, 9)
+        
+        for inst in townsfolk_instances:
+            if inst['room'] == rid:
+                tid = inst['type_id']
+                # Guild Masters (5, 6, 7, 8, 13)
+                if tid in (5, 6, 7, 8, 13) and not is_port_shop:
+                    shop_type = 5      
+                elif tid in (9, 15): 
+                    shop_type = 8             # Barkeeps
+                elif tid in (10, 11, 14): 
+                    # Only set to TAVERN if not already an INN (Tavern/Inn logic is subtle)
+                    if shop_type not in (8, 10): shop_type = 8
+                elif tid == 12: 
+                    shop_type = 11                 # Ship's Captain
                 break
-        if shop_type:
-            shops.append({'room': room['id'], 'type': shop_type})
-    return shops
 
+        if shop_type:
+            tier = 1
+            if rid > 40: tier = 3
+            elif rid > 10: tier = 2
+            
+            shops.append({
+                'room': rid, 
+                'shop_cat': shop_cat, 
+                'shop_type': shop_type,
+                'shop_tier': tier
+            })
+            
+    return shops
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
-    print("Parsing Tele-Arena 5.6 data files...")
+    print("Parsing Tele-Arena 5.6 Gold data files...")
 
-    # Items, Spells, Monsters
-    print("  Parsing TSGARN-D.MCV (items, spells, monsters)...")
-    items, spells, monsters = parse_items_spells_monsters()
-    print(f"    Found {len(items)} items, {len(spells)} spells, {len(monsters)} monsters")
+    items = parse_items_gold()
+    spells = parse_spells_gold()
+    monsters = parse_monsters_gold()
+    print(f"  Found {len(items)} items, {len(spells)} spells, {len(monsters)} monsters")
 
-    # Town data
-    print("  Parsing TSGARN-T.MCV (town rooms, townsfolk)...")
-    town_rooms, townsfolk_types = parse_town_data()
-    print(f"    Found {len(town_rooms)} town rooms, {len(townsfolk_types)} townsfolk types")
+    town_rooms, townsfolk_types, townsfolk_instances = parse_town_rooms_gold()
+    print(f"  Found {len(town_rooms)} town rooms, {len(townsfolk_types)} NPC types")
 
-    # Dungeon room descriptions
-    print("  Parsing TSGARNDT.MCV (dungeon room descriptions)...")
-    dungeon_rooms, rumors = parse_dungeon_rooms()
-    print(f"    Found {len(dungeon_rooms)} dungeon room descriptions, {len(rumors)} rumors")
+    dungeon_data = parse_dungeon_data_gold()
+    dungeon_rooms = dungeon_data['rooms']
+    print(f"  Found {len(dungeon_rooms)} dungeon rooms, {len(dungeon_data['fixed_lairs'])} fixed lairs, {len(dungeon_data['terrain_zones'])} terrain zones")
 
-    # Dungeon data (monster/item spawns)
-    print("  Parsing TSGARNDD.MCV (dungeon layout, monster/item spawns)...")
-    dungeon_data = parse_dungeon_data()
-    print(f"    World: '{dungeon_data['world_name']}', "
-          f"{dungeon_data['num_dun_rooms']} dungeon rooms, "
-          f"{len(dungeon_data['monster_spawns'])} monster spawns, "
-          f"{len(dungeon_data['item_spawns'])} item spawns")
+    print("  Parsing .MSG files for UI/Engine...")
+    all_msgs = {}
+    for f in ['TSGARN-C.MSG', 'TSGARN-M.MSG', 'TSGARN-D.MSG', 'TSGARN-T.MSG', 'TSGARNDD.MSG', 'TSGARNDT.MSG']:
+        all_msgs.update(parse_msg_file(os.path.join(SRC, f)))
+    print(f"    Total messages: {len(all_msgs)}")
 
-    # Messages
-    print("  Parsing .MSG files...")
-    main_msgs = parse_msg_file(os.path.join(SRC, 'TSGARN-M.MSG'))
-    cfg_msgs = parse_msg_file(os.path.join(SRC, 'TSGARN-C.MSG'))
-    all_msgs = {**cfg_msgs, **main_msgs}  # main overrides config
-    print(f"    Found {len(all_msgs)} messages")
-
-    # Monster weapons
-    mwp = parse_monster_weapons()
-
-    # Shop locations
-    shops = build_shop_data(town_rooms)
-
-    # Write output JSON files
-    print("\nWriting JSON data files...")
-
-    with open(os.path.join(OUT, 'items.json'), 'w') as f:
-        json.dump(items, f, indent=2)
-    print(f"  data/items.json ({len(items)} items)")
-
-    with open(os.path.join(OUT, 'spells.json'), 'w') as f:
-        json.dump(spells, f, indent=2)
-    print(f"  data/spells.json ({len(spells)} spells)")
-
-    with open(os.path.join(OUT, 'monsters.json'), 'w') as f:
-        json.dump(monsters, f, indent=2)
-    print(f"  data/monsters.json ({len(monsters)} monsters)")
-
-    with open(os.path.join(OUT, 'town_rooms.json'), 'w') as f:
-        json.dump(town_rooms, f, indent=2)
-    print(f"  data/town_rooms.json ({len(town_rooms)} rooms)")
-
-    with open(os.path.join(OUT, 'dungeon_rooms.json'), 'w') as f:
-        json.dump(dungeon_rooms, f, indent=2)
-    print(f"  data/dungeon_rooms.json ({len(dungeon_rooms)} room descriptions)")
-
-    dungeon_data['dungeon_room_descriptions'] = dungeon_rooms
-    with open(os.path.join(OUT, 'dungeon_data.json'), 'w') as f:
-        json.dump(dungeon_data, f, indent=2)
-    print(f"  data/dungeon_data.json")
-
-    with open(os.path.join(OUT, 'messages.json'), 'w') as f:
-        json.dump(all_msgs, f, indent=2)
-    print(f"  data/messages.json ({len(all_msgs)} messages)")
-
-    with open(os.path.join(OUT, 'monster_weapons.json'), 'w') as f:
-        json.dump(mwp, f, indent=2)
-
+    # Build shops and save
+    shops = build_shop_data(town_rooms, townsfolk_instances)
     with open(os.path.join(OUT, 'shops.json'), 'w') as f:
         json.dump(shops, f, indent=2)
-    print(f"  data/shops.json ({len(shops)} shops)")
 
-    with open(os.path.join(OUT, 'townsfolk_types.json'), 'w') as f:
-        json.dump(townsfolk_types, f, indent=2)
-
-    with open(os.path.join(OUT, 'rumors.json'), 'w') as f:
-        json.dump(rumors, f, indent=2)
+    print("\nWriting JSON data files...")
+    with open(os.path.join(OUT, 'items.json'), 'w') as f: json.dump(items, f, indent=2)
+    with open(os.path.join(OUT, 'spells.json'), 'w') as f: json.dump(spells, f, indent=2)
+    with open(os.path.join(OUT, 'monsters.json'), 'w') as f: json.dump(monsters, f, indent=2)
+    with open(os.path.join(OUT, 'town_rooms.json'), 'w') as f: json.dump(town_rooms, f, indent=2)
+    with open(os.path.join(OUT, 'townsfolk_types.json'), 'w') as f: json.dump(townsfolk_types, f, indent=2)
+    with open(os.path.join(OUT, 'townsfolk_instances.json'), 'w') as f: json.dump(townsfolk_instances, f, indent=2)
+    with open(os.path.join(OUT, 'dungeon_rooms.json'), 'w') as f: json.dump(dungeon_rooms, f, indent=2)
+    with open(os.path.join(OUT, 'dungeon_data.json'), 'w') as f: json.dump(dungeon_data, f, indent=2)
+    with open(os.path.join(OUT, 'messages.json'), 'w') as f: json.dump(all_msgs, f, indent=2)
+    with open(os.path.join(OUT, 'shops.json'), 'w') as f: json.dump(shops, f, indent=2)
 
     print("\nDone! Run 'python3 main.py' to play.")
-
 
 if __name__ == '__main__':
     main()

@@ -8,48 +8,64 @@ from .constants import *
 from . import messages as msg
 
 
-# Items that each shop type sells (by shop field value in item data)
-SHOP_SELLS = {
-    SHOP_EQUIPMENT: [1],      # shop field values for equipment shops
-    SHOP_WEAPON:    [2],
-    SHOP_ARMOR:     [3],
-    SHOP_MAGIC:     [4],
-}
+# Item 'type' field -> which shop type carries it.
+# The item 'shop' field is a tier (1=basic, 2=mid, 3=legendary), not the shop type.
+# Item types:
+#   1-10  = weapons (staff, blunt, edged, axe, hammer, special edged, great, bow, etc.)
+#   11-16 = armor (robes, light, medium, heavy, special)
+#   21    = supplies (torch, rope, food, arrows, misc)
+#   22    = thrown/missile weapons (dart, knife, spear, axe)
+#   31    = magic items (wands, rods, stones)
+#   32    = healing potions
+#   33    = special magic (soulstone, zarynthium, etc.)
+ITEM_TYPE_TO_SHOP = {}
+for _t in range(1, 11):   ITEM_TYPE_TO_SHOP[_t] = SHOP_WEAPON
+for _t in range(11, 17):  ITEM_TYPE_TO_SHOP[_t] = SHOP_ARMOR
+ITEM_TYPE_TO_SHOP[21] = SHOP_EQUIPMENT
+ITEM_TYPE_TO_SHOP[22] = SHOP_WEAPON      # thrown weapons go in weapon shop
+ITEM_TYPE_TO_SHOP[31] = SHOP_MAGIC
+ITEM_TYPE_TO_SHOP[32] = SHOP_MAGIC      # all potions in magic shop
+ITEM_TYPE_TO_SHOP[33] = SHOP_MAGIC
 
 
-def get_shop_inventory(shop_type, items_db, char_level=1):
+def get_shop_inventory(shop_cat, shop_tier, items_db, char_level=1):
     """
-    Return list of item indices available in the given shop type.
-    Filtered by character level if provided.
+    Return list of item indices available in the given shop category and tier.
+    ITEM_TYPE_TO_SHOP maps item.type to shop_cat.
+    item.shop contains the Tier (1, 2, 3).
     """
-    shop_field = {
-        SHOP_EQUIPMENT: 1,
-        SHOP_WEAPON:    2,
-        SHOP_ARMOR:     3,
-        SHOP_MAGIC:     4,
-    }.get(shop_type, 0)
-
-    if shop_field == 0:
+    if not shop_cat:
         return []
 
     result = []
     for i, item in enumerate(items_db):
-        if item.get('shop', 0) == shop_field:
-            # Filter by item level requirement
-            req_level = item.get('level', 0)
-            if req_level <= char_level:
-                result.append(i)
+        itype = item.get('type', 0)
+        # 1. Filter by Category
+        if ITEM_TYPE_TO_SHOP.get(itype) != shop_cat:
+            continue
+            
+        # 2. Filter by Tier (Gold 'shop' field is the Tier)
+        item_tier = item.get('shop', 0)
+        if item_tier == 0 or item_tier > shop_tier:
+            continue
+            
+        # 3. Filter by Character Level requirement
+        if item.get('level', 0) <= char_level:
+            result.append(i)
+            
+    # 4. Sort by Price (Lowest to Highest)
+    result.sort(key=lambda idx: items_db[idx].get('price', 0))
     return result
 
 
-def buy_item(char, item_name, shop_type, items_db, world):
+def buy_item(char, item_name, shop_cat, shop_tier, items_db, world):
     """
     Handle buying an item from a shop.
     Returns (success, message).
     """
     from .character import find_empty_slot, check_encumbrance, recalc_encumbrance
 
-    inventory = get_shop_inventory(shop_type, items_db, char.level)
+    inventory = get_shop_inventory(shop_cat, shop_tier, items_db, char.level)
     if not inventory:
         return False, '***\nThis shop has nothing for sale.\n'
 
@@ -65,7 +81,19 @@ def buy_item(char, item_name, shop_type, items_db, world):
         return False, f'***\nThis shop doesn\'t carry {item_name}.\n'
 
     item = items_db[found_idx]
-    price = item.get('price', 0)
+    base_price = item.get('price', 0)
+
+    # Original 5.6 charisma-based price calculation
+    # s = 175 - (chrs*2 + intl + know) + random(0, 15)
+    s = 175 - (char.chrs2 * 2 + char.intl2 + char.know2)
+    s += random.randint(0, 15)
+    
+    price = (base_price * s) // 100
+    # Minimum price = 50% of base
+    if price < (base_price >> 1):
+        price = base_price >> 1
+    if price < 1:
+        price = 1
 
     # Check gold
     if char.gold < price:
@@ -95,7 +123,7 @@ def buy_item(char, item_name, shop_type, items_db, world):
     return True, f'***\nYou buy {iname} for {price} gold.\n'
 
 
-def sell_item(char, item_name, shop_type, items_db, world):
+def sell_item(char, item_name, shop_cat, shop_tier, items_db, world):
     """
     Handle selling an item to a shop.
     Returns (success, message).
@@ -108,18 +136,16 @@ def sell_item(char, item_name, shop_type, items_db, world):
 
     item_idx = char.invent[slot]
     item = items_db[item_idx]
-    shop_field = item.get('shop', 0)
 
     # Check if this shop buys this type
-    expected_shop_field = {
-        SHOP_EQUIPMENT: 1,
-        SHOP_WEAPON:    2,
-        SHOP_ARMOR:     3,
-        SHOP_MAGIC:     4,
-    }.get(shop_type, 0)
-
-    if shop_field == 0 or shop_field != expected_shop_field:
+    itype = item.get('type', 0)
+    if ITEM_TYPE_TO_SHOP.get(itype) != shop_cat:
         return False, f'***\nThis shop doesn\'t buy that type of item.\n'
+        
+    # Check if the shop tier is high enough to buy this item
+    item_tier = item.get('shop', 0)
+    if item_tier == 0 or item_tier > shop_tier:
+        return False, f'***\nThis shop doesn\'t deal in items of that caliber.\n'
 
     # Sell price = half purchase price
     sell_price = max(1, item.get('price', 0) // 2)
@@ -140,9 +166,9 @@ def sell_item(char, item_name, shop_type, items_db, world):
     return True, f'***\nYou sell {iname} for {sell_price} gold.\n'
 
 
-def list_shop_items(shop_type, items_db, char):
+def list_shop_items(shop_cat, shop_tier, items_db, char):
     """Return formatted list of items for sale."""
-    inventory = get_shop_inventory(shop_type, items_db, char.level)
+    inventory = get_shop_inventory(shop_cat, shop_tier, items_db, char.level)
     if not inventory:
         return '***\nThis shop has nothing for sale.\n'
 
@@ -253,6 +279,72 @@ def bank_withdraw(char, amount):
 
 def bank_balance(char):
     return f'***\nBalance: {char.accbal} gold  On hand: {char.gold} gold\n'
+
+
+def temple_buy(char, service):
+    """
+    Handle temple services: curing, healing, removal, restoring.
+    Matches original: BUY CURING/HEALING/REMOVAL/RESTORING
+    """
+    service = service.lower().strip()
+
+    if service == 'curing':
+        cost = 3
+        if char.gold < cost:
+            return False, msg.get('CNTAFD', 'curing')
+        if char.poison <= 0:
+            return False, msg.get('NOCURE')
+        char.gold -= cost
+        char.poison = 0
+        char.status = STS_NORMAL
+        return True, msg.get('YOUGTC', cost)
+
+    elif service == 'healing':
+        cost = max(1, (char.mhits - char.hits) // 10 + 1)
+        if char.gold < cost:
+            return False, msg.get('CNTAFD', 'healing')
+        if char.hits >= char.mhits:
+            return False, msg.get('NOHEAL')
+        char.gold -= cost
+        char.hits = char.mhits
+        return True, msg.get('YOUGTH', cost)
+
+    elif service == 'removal':
+        cost = 10
+        if char.gold < cost:
+            return False, msg.get('CNTAFD', 'removal')
+        if char.parcnt <= 0:
+            return False, msg.get('NOREMO')
+        char.gold -= cost
+        char.parcnt = 0
+        char.status = STS_NORMAL
+        return True, msg.get('YOUGTP', cost)
+
+    elif service == 'restoring':
+        cost = 25
+        if char.gold < cost:
+            return False, msg.get('CNTAFD', 'restoring')
+        # Check if stats are already whole
+        drained = (char.intl < char.intl2 or char.know < char.know2 or
+                   char.phys < char.phys2 or char.stam < char.stam2 or
+                   char.agil < char.agil2 or char.chrs < char.chrs2 or
+                   char.mspts < char.mspts2 or char.mhits < char.mhits2)
+        if not drained:
+            return False, msg.get('NOREST')
+        char.gold -= cost
+        char.intl  = char.intl2
+        char.know  = char.know2
+        char.phys  = char.phys2
+        char.stam  = char.stam2
+        char.agil  = char.agil2
+        char.chrs  = char.chrs2
+        char.mspts = char.mspts2
+        char.mhits = char.mhits2
+        char.hits  = min(char.hits, char.mhits)
+        return True, msg.get('YOUGTR', cost)
+
+    else:
+        return False, msg.get('NOSSRV')
 
 
 def donate_to_temple(char, amount):
